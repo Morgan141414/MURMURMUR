@@ -50,3 +50,34 @@ https://github.com/Morgan141414/MURMURMUR.git
 ```text
 codex/mvp1-docs
 ```
+
+## Backend MVP1
+
+В репозитории начат FastAPI backend:
+
+- `src/saphena/main.py` - точка входа приложения;
+- `src/saphena/modules/models.py` - модели ядра MVP1;
+- `src/saphena/api/routers/` - HTTP API;
+- `tests/` - базовые интеграционные тесты.
+
+### Локальный запуск
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+Copy-Item .env.example .env
+python -m uvicorn saphena.main:app --reload
+```
+
+После запуска:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+### Проверка
+
+```powershell
+python -m pytest
+```
