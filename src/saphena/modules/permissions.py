@@ -29,6 +29,20 @@ class PermissionCode(StrEnum):
     crm_manage = "crm:manage"
 
 
+ROLE_TITLES: dict[RoleCode, str] = {
+    RoleCode.platform_superadmin: "Platform Superadmin",
+    RoleCode.platform_moderator: "Platform Moderator",
+    RoleCode.support_agent: "Support Agent",
+    RoleCode.clinic_founder: "Clinic Founder",
+    RoleCode.clinic_ceo: "Clinic CEO",
+    RoleCode.chief_doctor: "Chief Doctor",
+    RoleCode.doctor: "Doctor",
+    RoleCode.reception_admin: "Reception Admin",
+    RoleCode.call_center: "Call Center",
+    RoleCode.patient: "Patient",
+}
+
+
 ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
     RoleCode.platform_superadmin: set(PermissionCode),
     RoleCode.platform_moderator: {

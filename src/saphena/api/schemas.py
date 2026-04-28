@@ -111,6 +111,24 @@ class MembershipRead(BaseModel):
     is_active: bool
 
 
+class RoleDefinitionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    code: str
+    scope: str
+    title: str
+    permissions: str
+    is_system: bool
+
+
+class ClinicEmployeeAssign(BaseModel):
+    iin: str = Field(min_length=12, max_length=12)
+    role_code: RoleCode
+    department: str | None = Field(default=None, max_length=120)
+    position: str | None = Field(default=None, max_length=120)
+
+
 class AuditLogRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

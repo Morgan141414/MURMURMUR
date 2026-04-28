@@ -6,13 +6,22 @@ from saphena.api.schemas import (
     ClinicApplicationCreate,
     ClinicApplicationModerate,
     ClinicApplicationRead,
+    ClinicEmployeeAssign,
     ClinicRead,
     MembershipRead,
+    RoleDefinitionRead,
 )
 from saphena.modules.enums import ClinicApplicationStatus
-from saphena.modules.models import Clinic, ClinicApplication, ClinicMembership
+from saphena.modules.models import (
+    Account,
+    Clinic,
+    ClinicApplication,
+    ClinicMembership,
+    Person,
+    RoleDefinition,
+)
 from saphena.modules.permissions import PermissionCode, RoleCode
-from saphena.services.access import has_permission
+from saphena.services.access import can_assign_role, has_permission
 from saphena.services.audit import audit
 
 router = APIRouter(prefix="/clinics", tags=["clinics"])
@@ -162,3 +171,92 @@ def list_employees(
             select(ClinicMembership).where(ClinicMembership.clinic_id == clinic_id)
         ).all()
     )
+
+
+@router.get("/roles/catalog", response_model=list[RoleDefinitionRead])
+def role_catalog(db: DbSession, current_account: CurrentAccount) -> list[RoleDefinition]:
+    if not current_account.is_superuser:
+        clinic_level_access = any(
+            has_permission(db, current_account, permission)
+            for permission in (
+                PermissionCode.employee_manage,
+                PermissionCode.clinic_read,
+                PermissionCode.clinic_application_moderate,
+            )
+        )
+        if not clinic_level_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Missing role access",
+            )
+    stmt = select(RoleDefinition).order_by(RoleDefinition.scope, RoleDefinition.code)
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/{clinic_id}/employees",
+    response_model=MembershipRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def assign_employee(
+    clinic_id: int,
+    payload: ClinicEmployeeAssign,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicMembership:
+    clinic = db.get(Clinic, clinic_id)
+    if clinic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clinic not found")
+
+    if not can_assign_role(db, current_account, clinic_id=clinic_id, target_role=payload.role_code):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot assign this role in the selected clinic",
+        )
+
+    person = db.scalar(select(Person).where(Person.iin == payload.iin))
+    if person is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person with this IIN not found",
+        )
+
+    account = db.scalar(select(Account).where(Account.person_id == person.id))
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account for this person not found",
+        )
+
+    existing = db.scalar(
+        select(ClinicMembership).where(
+            ClinicMembership.clinic_id == clinic_id,
+            ClinicMembership.account_id == account.id,
+            ClinicMembership.role_code == payload.role_code,
+            ClinicMembership.is_active.is_(True),
+        )
+    )
+    if existing is not None:
+        return existing
+
+    membership = ClinicMembership(
+        account_id=account.id,
+        clinic_id=clinic_id,
+        role_code=payload.role_code,
+        department=payload.department,
+        position=payload.position,
+    )
+    db.add(membership)
+    db.flush()
+    audit(
+        db,
+        action="employee.assign",
+        entity_type="clinic_membership",
+        entity_id=membership.id,
+        actor=current_account,
+        clinic_id=clinic_id,
+        details=f"{payload.iin}:{payload.role_code.value}",
+    )
+    db.commit()
+    db.refresh(membership)
+    return membership

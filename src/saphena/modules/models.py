@@ -31,6 +31,17 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class RoleDefinition(Base):
+    __tablename__ = "role_definitions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    scope: Mapped[str] = mapped_column(String(32), default="clinic")
+    title: Mapped[str] = mapped_column(String(255))
+    permissions: Mapped[str] = mapped_column(Text)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Person(Base, TimestampMixin):
     __tablename__ = "persons"
 

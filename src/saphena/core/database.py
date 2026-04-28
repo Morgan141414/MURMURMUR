@@ -31,5 +31,8 @@ def get_db() -> Generator[Session, None, None]:
 
 def create_schema() -> None:
     from saphena.modules import models  # noqa: F401
+    from saphena.services.bootstrap import ensure_role_definitions
 
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        ensure_role_definitions(db)

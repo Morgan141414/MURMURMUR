@@ -114,3 +114,56 @@ def test_clinic_application_approval_creates_clinic_and_founder_membership() -> 
     )
     assert audit_response.status_code == 200
     assert any(item["action"] == "clinic_application.approved" for item in audit_response.json())
+
+
+def test_founder_can_assign_employee_and_view_role_catalog() -> None:
+    register_user("123456789015")
+    founder_token = login("123456789015")
+    moderator = register_user("123456789016")
+    make_superuser(moderator["id"])
+    moderator_token = login("123456789016")
+    register_user("123456789017")
+
+    application_response = client.post(
+        "/api/v1/clinics/applications",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "name": "MVP Staff Clinic",
+            "legal_name": "MVP Staff Clinic LLP",
+            "bin_iin": "990140000002",
+            "address": "Astana, Kunaeva 2",
+            "submit": True,
+        },
+    )
+    assert application_response.status_code == 201, application_response.text
+    application_id = application_response.json()["id"]
+
+    approval_response = client.patch(
+        f"/api/v1/clinics/applications/{application_id}",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+        json={"status": "approved"},
+    )
+    assert approval_response.status_code == 200, approval_response.text
+    clinic_id = approval_response.json()["clinic_id"]
+    assert clinic_id is not None
+
+    role_catalog_response = client.get(
+        "/api/v1/clinics/roles/catalog",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert role_catalog_response.status_code == 200, role_catalog_response.text
+    assert any(item["code"] == "doctor" for item in role_catalog_response.json())
+
+    assign_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/employees",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "iin": "123456789017",
+            "role_code": "doctor",
+            "department": "Therapy",
+            "position": "Doctor",
+        },
+    )
+    assert assign_response.status_code == 201, assign_response.text
+    assert assign_response.json()["role_code"] == "doctor"
+    assert assign_response.json()["department"] == "Therapy"
