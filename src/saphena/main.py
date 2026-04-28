@@ -1,8 +1,14 @@
-from fastapi import FastAPI
+from pathlib import Path
 
-from saphena.api.routers import admin, auth, clinics, health
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from saphena.api.routers import admin, auth, bootstrap, clinics, health, operations
 from saphena.core.config import get_settings
 from saphena.core.database import create_schema
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 def create_app() -> FastAPI:
@@ -21,6 +27,16 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(clinics.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
+    app.include_router(operations.router, prefix="/api/v1")
+    app.include_router(bootstrap.router, prefix="/api/v1")
+
+    if WEB_DIR.exists():
+        app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
+
+        @app.get("/", include_in_schema=False)
+        def index() -> FileResponse:
+            return FileResponse(WEB_DIR / "index.html")
+
     return app
 
 

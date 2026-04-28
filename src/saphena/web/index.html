@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saphena M.I.S.</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Saphena 2.0</p>
+          <h1>M.I.S. MVP1</h1>
+          <p class="brand-copy">
+            Рабочий демо-контур для мультиклиничной платформы с регистрацией,
+            заявками клиник, сотрудниками, пациентами, CRM и поддержкой.
+          </p>
+        </div>
+        <nav class="nav-list">
+          <button data-panel="auth" class="nav-item is-active">Вход и демо</button>
+          <button data-panel="applications" class="nav-item">Заявки клиник</button>
+          <button data-panel="clinics" class="nav-item">Клиники и сотрудники</button>
+          <button data-panel="patients" class="nav-item">Пациенты</button>
+          <button data-panel="appointments" class="nav-item">Записи</button>
+          <button data-panel="crm" class="nav-item">CRM</button>
+          <button data-panel="support" class="nav-item">Поддержка</button>
+          <button data-panel="audit" class="nav-item">Аудит</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Live Preview</p>
+            <h2>Интерфейс обратной связи по MVP1</h2>
+          </div>
+          <div class="session-box">
+            <div>
+              <span class="session-label">Текущий аккаунт</span>
+              <strong id="session-name">не выполнен вход</strong>
+            </div>
+            <button id="logout-button" class="ghost-button">Выйти</button>
+          </div>
+        </header>
+
+        <section id="alerts"></section>
+
+        <section id="panel-auth" class="panel is-active">
+          <div class="panel-grid panel-grid-auth">
+            <article class="card hero-card">
+              <p class="eyebrow">Быстрый старт</p>
+              <h3>Подними демо за один клик</h3>
+              <p>
+                Создает superadmin, founder, demo clinic, врача, пациента,
+                CRM-лид, тикет поддержки и запись, чтобы сразу пройтись по MVP.
+              </p>
+              <button id="bootstrap-demo" class="primary-button">Создать demo-данные</button>
+              <pre id="demo-credentials" class="credentials-box"></pre>
+            </article>
+
+            <article class="card">
+              <p class="eyebrow">Логин</p>
+              <h3>Войти по ИИН</h3>
+              <form id="login-form" class="form-stack">
+                <label>
+                  <span>ИИН</span>
+                  <input name="iin" maxlength="12" required />
+                </label>
+                <label>
+                  <span>Пароль</span>
+                  <input name="password" type="password" required />
+                </label>
+                <button class="primary-button" type="submit">Войти</button>
+              </form>
+            </article>
+
+            <article class="card">
+              <p class="eyebrow">Регистрация</p>
+              <h3>Новый пользователь</h3>
+              <form id="register-form" class="form-stack">
+                <label>
+                  <span>ИИН</span>
+                  <input name="iin" maxlength="12" required />
+                </label>
+                <label>
+                  <span>Имя</span>
+                  <input name="first_name" required />
+                </label>
+                <label>
+                  <span>Фамилия</span>
+                  <input name="last_name" required />
+                </label>
+                <label>
+                  <span>Телефон</span>
+                  <input name="phone" />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="email" type="email" />
+                </label>
+                <label>
+                  <span>Пароль</span>
+                  <input name="password" type="password" required />
+                </label>
+                <button class="primary-button" type="submit">Зарегистрировать</button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-applications" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <p class="eyebrow">Создание клиники</p>
+              <h3>Новая заявка</h3>
+              <form id="application-form" class="form-stack">
+                <label><span>Название клиники</span><input name="name" required /></label>
+                <label><span>Юр. название</span><input name="legal_name" required /></label>
+                <label><span>БИН/ИИН</span><input name="bin_iin" required /></label>
+                <label><span>Адрес</span><input name="address" required /></label>
+                <label><span>Контакты</span><input name="contacts" /></label>
+                <label><span>Учредители</span><textarea name="founder_data"></textarea></label>
+                <label><span>Описание</span><textarea name="activity_description"></textarea></label>
+                <button class="primary-button" type="submit">Отправить заявку</button>
+              </form>
+            </article>
+            <article class="card span-2">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Модерация</p>
+                  <h3>Список заявок</h3>
+                </div>
+                <button id="refresh-applications" class="ghost-button">Обновить</button>
+              </div>
+              <div id="applications-list" class="list-grid"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-clinics" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Оргструктура</p>
+                  <h3>Клиники</h3>
+                </div>
+                <button id="refresh-clinics" class="ghost-button">Обновить</button>
+              </div>
+              <div id="clinics-list" class="stack-list"></div>
+            </article>
+            <article class="card">
+              <p class="eyebrow">Назначение</p>
+              <h3>Добавить сотрудника</h3>
+              <form id="employee-form" class="form-stack">
+                <label><span>Клиника</span><select name="clinic_id" id="employee-clinic"></select></label>
+                <label><span>ИИН сотрудника</span><input name="iin" maxlength="12" required /></label>
+                <label><span>Роль</span><select name="role_code" id="role-code-select"></select></label>
+                <label><span>Отдел</span><input name="department" /></label>
+                <label><span>Должность</span><input name="position" /></label>
+                <button class="primary-button" type="submit">Назначить</button>
+              </form>
+            </article>
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">RBAC</p>
+                  <h3>Каталог ролей</h3>
+                </div>
+                <button id="refresh-roles" class="ghost-button">Обновить</button>
+              </div>
+              <div id="roles-list" class="stack-list compact"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-patients" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <p class="eyebrow">Пациенты</p>
+              <h3>Новый пациент</h3>
+              <form id="patient-form" class="form-stack">
+                <label><span>ИИН</span><input name="iin" maxlength="12" required /></label>
+                <label><span>Имя</span><input name="first_name" required /></label>
+                <label><span>Фамилия</span><input name="last_name" required /></label>
+                <label><span>Телефон</span><input name="phone" /></label>
+                <label><span>Email</span><input name="email" type="email" /></label>
+                <label><span>Заметки</span><textarea name="notes"></textarea></label>
+                <button class="primary-button" type="submit">Создать пациента</button>
+              </form>
+            </article>
+            <article class="card span-2">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Реестр</p>
+                  <h3>Список пациентов</h3>
+                </div>
+                <button id="refresh-patients" class="ghost-button">Обновить</button>
+              </div>
+              <div id="patients-list" class="tableish"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-appointments" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <p class="eyebrow">Расписание</p>
+              <h3>Создать запись</h3>
+              <form id="appointment-form" class="form-stack">
+                <label><span>Клиника</span><select name="clinic_id" id="appointment-clinic"></select></label>
+                <label><span>Пациент</span><select name="patient_profile_id" id="appointment-patient"></select></label>
+                <label><span>Врач</span><select name="doctor_membership_id" id="appointment-doctor"></select></label>
+                <label><span>Начало</span><input name="starts_at" type="datetime-local" required /></label>
+                <label><span>Окончание</span><input name="ends_at" type="datetime-local" required /></label>
+                <label><span>Причина</span><textarea name="reason"></textarea></label>
+                <button class="primary-button" type="submit">Создать запись</button>
+              </form>
+            </article>
+            <article class="card span-2">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Календарь</p>
+                  <h3>Список записей</h3>
+                </div>
+                <button id="refresh-appointments" class="ghost-button">Обновить</button>
+              </div>
+              <div id="appointments-list" class="list-grid"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-crm" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <p class="eyebrow">Лиды</p>
+              <h3>Новый лид</h3>
+              <form id="lead-form" class="form-stack">
+                <label><span>Клиника</span><select name="clinic_id" id="lead-clinic"></select></label>
+                <label><span>Имя клиента</span><input name="full_name" required /></label>
+                <label><span>Телефон</span><input name="phone" /></label>
+                <label><span>Источник</span><input name="source" /></label>
+                <label><span>Комментарий</span><textarea name="note"></textarea></label>
+                <button class="primary-button" type="submit">Сохранить лид</button>
+              </form>
+            </article>
+            <article class="card span-2">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Воронка</p>
+                  <h3>CRM список</h3>
+                </div>
+                <button id="refresh-leads" class="ghost-button">Обновить</button>
+              </div>
+              <div id="leads-list" class="tableish"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-support" class="panel">
+          <div class="panel-grid">
+            <article class="card">
+              <p class="eyebrow">Техподдержка</p>
+              <h3>Создать тикет</h3>
+              <form id="support-form" class="form-stack">
+                <label><span>Клиника</span><select name="clinic_id" id="support-clinic"></select></label>
+                <label><span>Тема</span><input name="topic" required /></label>
+                <label><span>Сообщение</span><textarea name="message" required></textarea></label>
+                <button class="primary-button" type="submit">Отправить тикет</button>
+              </form>
+            </article>
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Нотификации</p>
+                  <h3>Мои уведомления</h3>
+                </div>
+                <button id="refresh-notifications" class="ghost-button">Обновить</button>
+              </div>
+              <div id="notifications-list" class="stack-list"></div>
+            </article>
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Очередь</p>
+                  <h3>Тикеты поддержки</h3>
+                </div>
+                <button id="refresh-support" class="ghost-button">Обновить</button>
+              </div>
+              <div id="support-list" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-audit" class="panel">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Контроль</p>
+                <h3>Аудит системы</h3>
+              </div>
+              <button id="refresh-audit" class="ghost-button">Обновить</button>
+            </div>
+            <div id="audit-list" class="tableish"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

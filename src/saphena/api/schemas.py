@@ -2,7 +2,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from saphena.modules.enums import ClinicApplicationStatus, ClinicStatus
+from saphena.modules.enums import (
+    AppointmentStatus,
+    ClinicApplicationStatus,
+    ClinicStatus,
+    LeadStatus,
+    SupportTicketStatus,
+)
 from saphena.modules.permissions import RoleCode
 
 
@@ -139,4 +145,104 @@ class AuditLogRead(BaseModel):
     entity_type: str
     entity_id: str | None
     details: str | None
+    created_at: datetime
+
+
+class BootstrapDemoResponse(BaseModel):
+    message: str
+    superadmin_iin: str
+    superadmin_password: str
+    founder_iin: str
+    founder_password: str
+
+
+class PatientCreate(BaseModel):
+    iin: str = Field(min_length=12, max_length=12)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
+    notes: str | None = None
+
+
+class PatientRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    person_id: int
+    notes: str | None = None
+    person: PersonRead
+
+
+class AppointmentCreate(BaseModel):
+    patient_profile_id: int
+    doctor_membership_id: int | None = None
+    starts_at: datetime
+    ends_at: datetime
+    reason: str | None = None
+    status: AppointmentStatus = AppointmentStatus.created
+
+
+class AppointmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    patient_profile_id: int
+    doctor_membership_id: int | None = None
+    starts_at: datetime
+    ends_at: datetime
+    status: AppointmentStatus
+    reason: str | None = None
+
+
+class LeadCreate(BaseModel):
+    clinic_id: int
+    full_name: str = Field(min_length=1, max_length=255)
+    phone: str | None = Field(default=None, max_length=32)
+    source: str | None = Field(default=None, max_length=120)
+    note: str | None = None
+    status: LeadStatus = LeadStatus.new
+
+
+class LeadRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    full_name: str
+    phone: str | None = None
+    source: str | None = None
+    status: LeadStatus
+    note: str | None = None
+    created_at: datetime
+
+
+class SupportTicketCreate(BaseModel):
+    clinic_id: int | None = None
+    topic: str = Field(min_length=1, max_length=120)
+    message: str = Field(min_length=1)
+
+
+class SupportTicketRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    requester_account_id: int
+    clinic_id: int | None = None
+    topic: str
+    message: str
+    status: SupportTicketStatus
+    created_at: datetime
+
+
+class NotificationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    account_id: int
+    title: str
+    body: str
+    read_at: datetime | None = None
     created_at: datetime
