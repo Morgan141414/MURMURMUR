@@ -167,3 +167,13 @@ def test_founder_can_assign_employee_and_view_role_catalog() -> None:
     assert assign_response.status_code == 201, assign_response.text
     assert assign_response.json()["role_code"] == "doctor"
     assert assign_response.json()["department"] == "Therapy"
+
+    employees_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/employees",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert employees_response.status_code == 200, employees_response.text
+    assert any(
+        item["account_id"] != moderator["id"] and item["role_code"] == "doctor"
+        for item in employees_response.json()
+    )
