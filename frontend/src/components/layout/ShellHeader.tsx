@@ -92,7 +92,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
 
   if (location.pathname.startsWith('/explore/companies/')) {
     breadcrumbSegments = [t('search.title', 'Search')]
-    title = t('search.openCompany', 'Company')
+    title = t('search.openCompany', 'Клиника')
   } else if (location.pathname.startsWith('/explore/users/') || location.pathname.startsWith('/users/')) {
     breadcrumbSegments = [t('search.title', 'Search')]
     title = t('search.openProfile', 'Profile')
@@ -106,7 +106,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
     breadcrumbSegments = [contextName]
     title = pageName
   } else {
-    title = t(`shell.${currentShell}`)
+    title = currentShell === 'company' ? 'Рабочий кабинет' : t(`shell.${currentShell}`)
   }
 
   /* ── Notification dropdown ── */
@@ -230,7 +230,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
 
   async function handleDepartmentInviteApprovalAction(notificationId: string, inviteId: string, action: 'approve' | 'reject') {
     if (!activeOrgId) {
-      toast.error('Select a company first')
+      toast.error('Сначала выберите клинику')
       return
     }
     try {
@@ -250,7 +250,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
 
   async function handleDepartmentInviteAction(notificationId: string, inviteId: string, action: 'accept' | 'reject') {
     if (!activeOrgId) {
-      toast.error('Сначала выберите компанию')
+      toast.error('Сначала выберите клинику')
       return
     }
     try {
@@ -574,3 +574,5 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
     </header>
   )
 }
+
+

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 
 function getSystemTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 interface UiState {
@@ -16,7 +16,7 @@ interface UiState {
 }
 
 function normalizeTheme(value: unknown): 'dark' | 'light' {
-  return value === 'light' ? 'light' : 'dark'
+  return value === 'dark' ? 'dark' : 'light'
 }
 
 export const useUiStore = create<UiState>()(
@@ -58,3 +58,4 @@ export const useUiStore = create<UiState>()(
     },
   ),
 )
+
