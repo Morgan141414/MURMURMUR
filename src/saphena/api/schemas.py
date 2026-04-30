@@ -242,6 +242,31 @@ class DocumentTemplateRead(BaseModel):
     updated_at: datetime
 
 
+class DocumentRenderRequest(BaseModel):
+    template_id: int | None = None
+    template_code: str | None = Field(default=None, max_length=80)
+    title: str | None = Field(default=None, max_length=255)
+    patient_profile_id: int | None = None
+    appointment_id: int | None = None
+    medical_record_entry_id: int | None = None
+    extras: dict[str, str] | None = None
+
+
+class GeneratedDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    template_id: int | None = None
+    patient_profile_id: int | None = None
+    appointment_id: int | None = None
+    medical_record_entry_id: int | None = None
+    code: str
+    title: str
+    body: str
+    created_at: datetime
+
+
 class LeadCreate(BaseModel):
     clinic_id: int
     full_name: str = Field(min_length=1, max_length=255)

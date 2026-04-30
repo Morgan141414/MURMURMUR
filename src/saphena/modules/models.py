@@ -204,6 +204,26 @@ class DocumentTemplate(Base, TimestampMixin):
     body: Mapped[str] = mapped_column(Text)
 
 
+class GeneratedDocument(Base, TimestampMixin):
+    __tablename__ = "generated_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("document_templates.id"), default=None
+    )
+    patient_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("patient_profiles.id"), default=None, index=True
+    )
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), default=None)
+    medical_record_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("medical_record_entries.id"), default=None
+    )
+    code: Mapped[str] = mapped_column(String(80), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    body: Mapped[str] = mapped_column(Text)
+
+
 class Notification(Base, TimestampMixin):
     __tablename__ = "notifications"
 

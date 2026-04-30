@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
@@ -5,8 +7,10 @@ from saphena.api.deps import CurrentAccount, DbSession
 from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
+    DocumentRenderRequest,
     DocumentTemplateCreate,
     DocumentTemplateRead,
+    GeneratedDocumentRead,
     LeadCreate,
     LeadRead,
     MedicalRecordEntryCreate,
@@ -24,6 +28,7 @@ from saphena.modules.models import (
     ClinicPatient,
     CrmLead,
     DocumentTemplate,
+    GeneratedDocument,
     MedicalRecordEntry,
     Notification,
     PatientProfile,
@@ -35,6 +40,16 @@ from saphena.services.access import has_permission
 from saphena.services.audit import audit
 
 router = APIRouter(tags=["operations"])
+
+PLACEHOLDER_PATTERN = re.compile(r"{{\s*([a-zA-Z0-9_.-]+)\s*}}")
+
+
+def _render_template(content: str, context: dict[str, str]) -> str:
+    def replacer(match: re.Match[str]) -> str:
+        key = match.group(1)
+        return context.get(key, "")
+
+    return PLACEHOLDER_PATTERN.sub(replacer, content)
 
 
 @router.get("/patients", response_model=list[PatientRead])
@@ -354,6 +369,157 @@ def create_document_template(
         db,
         action=action,
         entity_type="document_template",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get(
+    "/clinics/{clinic_id}/documents/generated",
+    response_model=list[GeneratedDocumentRead],
+)
+def list_generated_documents(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[GeneratedDocument]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.document_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing generated document access",
+        )
+    stmt = (
+        select(GeneratedDocument)
+        .where(GeneratedDocument.clinic_id == clinic_id)
+        .order_by(GeneratedDocument.created_at.desc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/documents/render",
+    response_model=GeneratedDocumentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def render_document_from_template(
+    clinic_id: int,
+    payload: DocumentRenderRequest,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> GeneratedDocument:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.document_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing document render rights",
+        )
+
+    if payload.template_id is None and not payload.template_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide template_id or template_code",
+        )
+
+    template_stmt = select(DocumentTemplate).where(DocumentTemplate.clinic_id == clinic_id)
+    if payload.template_id is not None:
+        template_stmt = template_stmt.where(DocumentTemplate.id == payload.template_id)
+    else:
+        template_stmt = template_stmt.where(DocumentTemplate.code == payload.template_code)
+
+    template = db.scalar(template_stmt)
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+
+    context: dict[str, str] = {}
+    if payload.extras:
+        context.update({str(k): str(v) for k, v in payload.extras.items()})
+
+    if payload.patient_profile_id is not None:
+        patient = db.get(PatientProfile, payload.patient_profile_id)
+        if patient is not None and patient.person is not None:
+            context.update(
+                {
+                    "patient.id": str(patient.id),
+                    "patient.iin": patient.person.iin or "",
+                    "patient.first_name": patient.person.first_name or "",
+                    "patient.last_name": patient.person.last_name or "",
+                    "patient.middle_name": patient.person.middle_name or "",
+                    "patient.phone": patient.person.phone or "",
+                    "patient.email": patient.person.email or "",
+                    "patient.notes": patient.notes or "",
+                    "iin": patient.person.iin or "",
+                    "first_name": patient.person.first_name or "",
+                    "last_name": patient.person.last_name or "",
+                    "middle_name": patient.person.middle_name or "",
+                    "phone": patient.person.phone or "",
+                    "email": patient.person.email or "",
+                    "patient_notes": patient.notes or "",
+                }
+            )
+
+    if payload.appointment_id is not None:
+        appointment = db.get(Appointment, payload.appointment_id)
+        if appointment is not None:
+            context.update(
+                {
+                    "appointment.id": str(appointment.id),
+                    "appointment.starts_at": appointment.starts_at.isoformat(),
+                    "appointment.ends_at": appointment.ends_at.isoformat(),
+                    "appointment.reason": appointment.reason or "",
+                    "appointment.status": appointment.status.value,
+                    "starts_at": appointment.starts_at.isoformat(),
+                    "ends_at": appointment.ends_at.isoformat(),
+                    "appointment_reason": appointment.reason or "",
+                    "appointment_status": appointment.status.value,
+                }
+            )
+
+    if payload.medical_record_entry_id is not None:
+        record = db.get(MedicalRecordEntry, payload.medical_record_entry_id)
+        if record is not None:
+            context.update(
+                {
+                    "record.id": str(record.id),
+                    "record.complaint": record.complaint or "",
+                    "record.anamnesis": record.anamnesis or "",
+                    "record.diagnosis": record.diagnosis or "",
+                    "record.prescription": record.prescription or "",
+                    "record.conclusion": record.conclusion or "",
+                    "complaint": record.complaint or "",
+                    "anamnesis": record.anamnesis or "",
+                    "diagnosis": record.diagnosis or "",
+                    "prescription": record.prescription or "",
+                    "conclusion": record.conclusion or "",
+                }
+            )
+
+    rendered_title = payload.title or template.title
+    rendered_body = _render_template(template.body, context)
+
+    item = GeneratedDocument(
+        clinic_id=clinic_id,
+        template_id=template.id,
+        patient_profile_id=payload.patient_profile_id,
+        appointment_id=payload.appointment_id,
+        medical_record_entry_id=payload.medical_record_entry_id,
+        code=template.code,
+        title=rendered_title,
+        body=rendered_body,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="document.rendered",
+        entity_type="generated_document",
         actor=current_account,
         clinic_id=clinic_id,
         entity_id=item.id,

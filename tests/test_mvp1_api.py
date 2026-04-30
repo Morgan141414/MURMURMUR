@@ -304,3 +304,26 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert templates_list_response.status_code == 200, templates_list_response.text
     assert any(item["code"] == "initial_exam" for item in templates_list_response.json())
+
+    render_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/documents/render",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "template_code": "initial_exam",
+            "patient_profile_id": patient_id,
+            "appointment_id": appointment_id,
+            "medical_record_entry_id": medical_record_response.json()["id"],
+            "extras": {"clinic_name": "Clinical Flow Clinic"},
+        },
+    )
+    assert render_response.status_code == 201, render_response.text
+    body = render_response.json()["body"]
+    assert "Headache" in body
+    assert "Tension headache" in body
+
+    generated_list_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/documents/generated",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert generated_list_response.status_code == 200, generated_list_response.text
+    assert any(item["code"] == "initial_exam" for item in generated_list_response.json())
