@@ -10,6 +10,7 @@ import {
   Megaphone, HeadphonesIcon, Scale, DollarSign,
   ContactRound,
   Calculator,
+  Stethoscope,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -34,6 +35,7 @@ export const companyNav: NavSection[] = [
     labelKey: 'nav.sections.overview',
     items: [
       { to: '/company/people', labelKey: 'nav.companyPeople', icon: Users },
+      { to: '/company/clinical', labelKey: 'nav.clinicalWorkspace', icon: Stethoscope, roles: ['founder', 'ceo', 'admin', 'hr', 'member'] },
       { to: '/company/crm', labelKey: 'nav.crm', icon: ContactRound, roles: ['founder', 'ceo', 'admin', 'sales_director', 'sales_manager', 'sales_support'] },
       { to: '/company/projects', labelKey: 'nav.departments', icon: FolderKanban, roles: ['founder', 'ceo', 'hr', 'lawyer'] },
       { to: '/company/documents', labelKey: 'nav.documents', icon: Files },

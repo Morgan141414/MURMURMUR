@@ -197,6 +197,33 @@ class AppointmentRead(BaseModel):
     reason: str | None = None
 
 
+class MedicalRecordEntryCreate(BaseModel):
+    patient_profile_id: int
+    author_membership_id: int | None = None
+    appointment_id: int | None = None
+    complaint: str | None = None
+    anamnesis: str | None = None
+    diagnosis: str | None = None
+    prescription: str | None = None
+    conclusion: str | None = None
+
+
+class MedicalRecordEntryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    patient_profile_id: int
+    author_membership_id: int | None = None
+    appointment_id: int | None = None
+    complaint: str | None = None
+    anamnesis: str | None = None
+    diagnosis: str | None = None
+    prescription: str | None = None
+    conclusion: str | None = None
+    created_at: datetime
+
+
 class LeadCreate(BaseModel):
     clinic_id: int
     full_name: str = Field(min_length=1, max_length=255)

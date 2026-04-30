@@ -50,6 +50,7 @@ const CompanyOwnersPage = lazyRoute(() => import('@/pages/company/CompanyOwnersP
 const CompanyProfileEditorPage = lazyRoute(() => import('@/pages/company/CompanyProfileEditorPage'))
 const CompanyApprovalsPage = lazyRoute(() => import('@/pages/company/CompanyApprovalsPage'))
 const CompanyDocumentsPage = lazyRoute(() => import('@/pages/company/CompanyDocumentsPage'))
+const ClinicalWorkspacePage = lazyRoute(() => import('@/pages/company/ClinicalWorkspacePage'))
 const HRWorkspacePage = lazyRoute(() => import('@/pages/company/HRWorkspacePage'))
 const ProjectsPage = lazyRoute(() => import('@/pages/admin/ProjectsPage'))
 const JoinRequestsPage = lazyRoute(() => import('@/pages/admin/JoinRequestsPage'))
@@ -207,6 +208,7 @@ export const router = createBrowserRouter([
           { path: '/company/roles', element: <W><RoleManagementPage /></W> },
           { path: '/company/join-requests', element: <W><JoinRequestsPage /></W> },
           { path: '/company/documents', element: <W><CompanyDocumentsPage /></W> },
+          { path: '/company/clinical', element: <W><ClinicalWorkspacePage /></W> },
           {
             element: <SuperAdminRoute />,
             children: [

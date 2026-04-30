@@ -7,6 +7,8 @@ from saphena.api.schemas import (
     AppointmentRead,
     LeadCreate,
     LeadRead,
+    MedicalRecordEntryCreate,
+    MedicalRecordEntryRead,
     NotificationRead,
     PatientCreate,
     PatientRead,
@@ -19,6 +21,7 @@ from saphena.modules.models import (
     Appointment,
     ClinicPatient,
     CrmLead,
+    MedicalRecordEntry,
     Notification,
     PatientProfile,
     Person,
@@ -198,6 +201,76 @@ def create_appointment(
         db,
         action="appointment.create",
         entity_type="appointment",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get(
+    "/clinics/{clinic_id}/medical-records",
+    response_model=list[MedicalRecordEntryRead],
+)
+def list_medical_records(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[MedicalRecordEntry]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.medical_record_read, clinic_id)
+        or has_permission(db, current_account, PermissionCode.patient_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing medical record access",
+        )
+    stmt = (
+        select(MedicalRecordEntry)
+        .where(MedicalRecordEntry.clinic_id == clinic_id)
+        .order_by(MedicalRecordEntry.created_at.desc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/medical-records",
+    response_model=MedicalRecordEntryRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_medical_record(
+    clinic_id: int,
+    payload: MedicalRecordEntryCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> MedicalRecordEntry:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.medical_record_read, clinic_id)
+        or has_permission(db, current_account, PermissionCode.patient_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing medical record rights",
+        )
+    item = MedicalRecordEntry(
+        clinic_id=clinic_id,
+        patient_profile_id=payload.patient_profile_id,
+        author_membership_id=payload.author_membership_id,
+        appointment_id=payload.appointment_id,
+        complaint=payload.complaint,
+        anamnesis=payload.anamnesis,
+        diagnosis=payload.diagnosis,
+        prescription=payload.prescription,
+        conclusion=payload.conclusion,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="medical_record.create",
+        entity_type="medical_record_entry",
         actor=current_account,
         clinic_id=clinic_id,
         entity_id=item.id,

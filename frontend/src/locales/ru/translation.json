@@ -995,7 +995,8 @@
     "marketing": "Маркетинг",
     "search": "Поиск",
     "auditLog": "Активности",
-    "accounting": "Бухгалтерия"
+    "accounting": "Бухгалтерия",
+    "clinicalWorkspace": "Клинический workspace"
   },
   "accounting": {
     "title": "Бухгалтерия",

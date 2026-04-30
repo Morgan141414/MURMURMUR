@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime, timedelta
 
 os.environ["SAPHENA_DATABASE_URL"] = f"sqlite:///{tempfile.NamedTemporaryFile(delete=False).name}"
 
@@ -176,4 +177,111 @@ def test_founder_can_assign_employee_and_view_role_catalog() -> None:
     assert any(
         item["account_id"] != moderator["id"] and item["role_code"] == "doctor"
         for item in employees_response.json()
+    )
+
+
+def test_clinic_patient_appointment_and_medical_record_flow() -> None:
+    register_user("123456789018")
+    founder_token = login("123456789018")
+    moderator = register_user("123456789019")
+    make_superuser(moderator["id"])
+    moderator_token = login("123456789019")
+    register_user("123456789020")
+
+    application_response = client.post(
+        "/api/v1/clinics/applications",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "name": "Clinical Flow Clinic",
+            "legal_name": "Clinical Flow Clinic LLP",
+            "bin_iin": "990140000003",
+            "address": "Shymkent, Tauke Khan 5",
+            "submit": True,
+        },
+    )
+    assert application_response.status_code == 201, application_response.text
+    application_id = application_response.json()["id"]
+
+    approval_response = client.patch(
+        f"/api/v1/clinics/applications/{application_id}",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+        json={"status": "approved"},
+    )
+    assert approval_response.status_code == 200, approval_response.text
+    clinic_id = approval_response.json()["clinic_id"]
+    assert clinic_id is not None
+
+    employee_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/employees",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "iin": "123456789020",
+            "role_code": "doctor",
+            "department": "Therapy",
+            "position": "Doctor",
+        },
+    )
+    assert employee_response.status_code == 201, employee_response.text
+    doctor_membership_id = employee_response.json()["id"]
+
+    patient_response = client.post(
+        "/api/v1/patients",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "iin": "123456789021",
+            "first_name": "Patient",
+            "last_name": "One",
+            "phone": "+77000000021",
+            "notes": "Initial card",
+        },
+    )
+    assert patient_response.status_code == 201, patient_response.text
+    patient_id = patient_response.json()["id"]
+
+    attach_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/patients/{patient_id}",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert attach_response.status_code == 201, attach_response.text
+
+    starts_at = datetime.utcnow().replace(microsecond=0)
+    ends_at = starts_at + timedelta(minutes=30)
+    appointment_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/appointments",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "patient_profile_id": patient_id,
+            "doctor_membership_id": doctor_membership_id,
+            "starts_at": starts_at.isoformat(),
+            "ends_at": ends_at.isoformat(),
+            "reason": "Primary consultation",
+        },
+    )
+    assert appointment_response.status_code == 201, appointment_response.text
+    appointment_id = appointment_response.json()["id"]
+
+    medical_record_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/medical-records",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "patient_profile_id": patient_id,
+            "author_membership_id": doctor_membership_id,
+            "appointment_id": appointment_id,
+            "complaint": "Headache",
+            "anamnesis": "No chronic conditions",
+            "diagnosis": "Tension headache",
+            "prescription": "Hydration and rest",
+            "conclusion": "Follow-up in 7 days",
+        },
+    )
+    assert medical_record_response.status_code == 201, medical_record_response.text
+
+    list_records_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/medical-records",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert list_records_response.status_code == 200, list_records_response.text
+    assert any(
+        item["appointment_id"] == appointment_id and item["diagnosis"] == "Tension headache"
+        for item in list_records_response.json()
     )
