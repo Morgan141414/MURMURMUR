@@ -206,10 +206,10 @@ function MainSidebar() {
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <span className="block text-[14px] font-semibold tracking-tight text-sidebar-foreground">
-              Bloom OS
+              Saphena M.I.S.
             </span>
             <span className="text-[11px] text-sidebar-muted">
-              Enterprise Platform
+              Medical Information System
             </span>
           </div>
         )}

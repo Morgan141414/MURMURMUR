@@ -823,7 +823,7 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
             <Sparkles className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">
-            {t('onboarding.welcome', 'Добро пожаловать в Bloom OS')}
+            {t('onboarding.welcome', 'Добро пожаловать в Saphena M.I.S.')}
           </h1>
           <p className="mt-3 text-[14px] text-white/40 max-w-md mx-auto leading-relaxed">
             {t('onboarding.welcomeDesc', 'Настройте своё рабочее пространство за несколько минут. Создайте новую компанию или присоединитесь к существующей.')}

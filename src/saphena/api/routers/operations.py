@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -7,24 +8,31 @@ from saphena.api.deps import CurrentAccount, DbSession
 from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
+    AppointmentUpdate,
     DocumentRenderRequest,
     DocumentTemplateCreate,
     DocumentTemplateRead,
     GeneratedDocumentRead,
     LeadCreate,
     LeadRead,
+    LeadUpdate,
     MedicalRecordEntryCreate,
     MedicalRecordEntryRead,
+    NotificationMarkReadResponse,
     NotificationRead,
     PatientCreate,
     PatientRead,
+    ScheduleSlotRead,
     SupportTicketCreate,
     SupportTicketRead,
+    SupportTicketUpdate,
 )
 from saphena.core.security import hash_password
+from saphena.modules.enums import AppointmentStatus
 from saphena.modules.models import (
     Account,
     Appointment,
+    ClinicMembership,
     ClinicPatient,
     CrmLead,
     DocumentTemplate,
@@ -38,6 +46,7 @@ from saphena.modules.models import (
 from saphena.modules.permissions import PermissionCode
 from saphena.services.access import has_permission
 from saphena.services.audit import audit
+from saphena.services.notifications import create_notification
 
 router = APIRouter(tags=["operations"])
 
@@ -164,6 +173,21 @@ def attach_patient_to_clinic(
     return {"clinic_id": clinic_id, "patient_profile_id": patient_profile_id}
 
 
+def _ensure_patient_attached(db: DbSession, *, clinic_id: int, patient_profile_id: int) -> None:
+    linked = db.scalar(
+        select(ClinicPatient).where(
+            ClinicPatient.clinic_id == clinic_id,
+            ClinicPatient.patient_profile_id == patient_profile_id,
+            ClinicPatient.is_active.is_(True),
+        )
+    )
+    if linked is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Patient is not attached to this clinic",
+        )
+
+
 @router.get("/clinics/{clinic_id}/appointments", response_model=list[AppointmentRead])
 def list_appointments(
     clinic_id: int, db: DbSession, current_account: CurrentAccount
@@ -204,6 +228,29 @@ def create_appointment(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing appointment rights",
         )
+    _ensure_patient_attached(db, clinic_id=clinic_id, patient_profile_id=payload.patient_profile_id)
+
+    if payload.doctor_membership_id is not None:
+        doctor_membership = db.get(ClinicMembership, payload.doctor_membership_id)
+        if doctor_membership is None or doctor_membership.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="doctor_membership_id is not valid for selected clinic",
+            )
+
+    overlap_stmt = select(Appointment).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.doctor_membership_id == payload.doctor_membership_id,
+        Appointment.starts_at < payload.ends_at,
+        Appointment.ends_at > payload.starts_at,
+        Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
+    )
+    if payload.doctor_membership_id is not None and db.scalar(overlap_stmt) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Appointment overlaps existing doctor's slot",
+        )
+
     item = Appointment(
         clinic_id=clinic_id,
         patient_profile_id=payload.patient_profile_id,
@@ -215,6 +262,15 @@ def create_appointment(
     )
     db.add(item)
     db.flush()
+    create_notification(
+        db,
+        account_id=current_account.id,
+        title="Appointment created",
+        body=(
+            f"Appointment #{item.id} for clinic #{clinic_id} "
+            f"starts at {item.starts_at.isoformat()}"
+        ),
+    )
     audit(
         db,
         action="appointment.create",
@@ -226,6 +282,98 @@ def create_appointment(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch(
+    "/clinics/{clinic_id}/appointments/{appointment_id}",
+    response_model=AppointmentRead,
+)
+def update_appointment(
+    clinic_id: int,
+    appointment_id: int,
+    payload: AppointmentUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> Appointment:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.appointment_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing appointment rights",
+        )
+    item = db.get(Appointment, appointment_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+
+    starts_at = payload.starts_at or item.starts_at
+    ends_at = payload.ends_at or item.ends_at
+    if ends_at <= starts_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ends_at must be greater than starts_at",
+        )
+    if item.doctor_membership_id is not None:
+        overlap_stmt = select(Appointment).where(
+            Appointment.id != item.id,
+            Appointment.clinic_id == clinic_id,
+            Appointment.doctor_membership_id == item.doctor_membership_id,
+            Appointment.starts_at < ends_at,
+            Appointment.ends_at > starts_at,
+            Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
+        )
+        if db.scalar(overlap_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Appointment overlaps existing doctor's slot",
+            )
+
+    item.starts_at = starts_at
+    item.ends_at = ends_at
+    if payload.status is not None:
+        item.status = payload.status
+    if payload.reason is not None:
+        item.reason = payload.reason
+    db.add(item)
+    audit(
+        db,
+        action="appointment.update",
+        entity_type="appointment",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/clinics/{clinic_id}/schedule", response_model=list[ScheduleSlotRead])
+def clinic_schedule(
+    clinic_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+    starts_at: datetime | None = None,
+    ends_at: datetime | None = None,
+) -> list[Appointment]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.appointment_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing schedule access",
+        )
+    stmt = select(Appointment).where(Appointment.clinic_id == clinic_id)
+    if starts_at is not None:
+        stmt = stmt.where(Appointment.ends_at >= starts_at)
+    if ends_at is not None:
+        stmt = stmt.where(Appointment.starts_at <= ends_at)
+    stmt = stmt.order_by(Appointment.starts_at.asc())
+    return list(db.scalars(stmt).all())
 
 
 @router.get(
@@ -272,6 +420,20 @@ def create_medical_record(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing medical record rights",
         )
+    _ensure_patient_attached(db, clinic_id=clinic_id, patient_profile_id=payload.patient_profile_id)
+    if payload.appointment_id is not None:
+        appointment = db.get(Appointment, payload.appointment_id)
+        if appointment is None or appointment.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="appointment_id is not valid for selected clinic",
+            )
+        if appointment.patient_profile_id != payload.patient_profile_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="appointment_id does not belong to this patient",
+            )
+
     item = MedicalRecordEntry(
         clinic_id=clinic_id,
         patient_profile_id=payload.patient_profile_id,
@@ -535,7 +697,21 @@ def list_leads(db: DbSession, current_account: CurrentAccount) -> list[CrmLead]:
         db, current_account, PermissionCode.crm_manage
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing CRM access")
-    return list(db.scalars(select(CrmLead).order_by(CrmLead.id.desc())).all())
+    if current_account.is_superuser:
+        return list(db.scalars(select(CrmLead).order_by(CrmLead.id.desc())).all())
+    clinic_ids = [
+        row[0]
+        for row in db.execute(
+            select(ClinicMembership.clinic_id).where(
+                ClinicMembership.account_id == current_account.id,
+                ClinicMembership.is_active.is_(True),
+            )
+        ).all()
+    ]
+    if not clinic_ids:
+        return []
+    stmt = select(CrmLead).where(CrmLead.clinic_id.in_(clinic_ids)).order_by(CrmLead.id.desc())
+    return list(db.scalars(stmt).all())
 
 
 @router.post("/crm/leads", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
@@ -560,6 +736,35 @@ def create_lead(payload: LeadCreate, db: DbSession, current_account: CurrentAcco
         entity_type="crm_lead",
         actor=current_account,
         clinic_id=payload.clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/crm/leads/{lead_id}", response_model=LeadRead)
+def update_lead(
+    lead_id: int, payload: LeadUpdate, db: DbSession, current_account: CurrentAccount
+) -> CrmLead:
+    item = db.get(CrmLead, lead_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    if not current_account.is_superuser and not has_permission(
+        db, current_account, PermissionCode.crm_manage, item.clinic_id
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing CRM rights")
+    if payload.status is not None:
+        item.status = payload.status
+    if payload.note is not None:
+        item.note = payload.note
+    db.add(item)
+    audit(
+        db,
+        action="crm_lead.update",
+        entity_type="crm_lead",
+        actor=current_account,
+        clinic_id=item.clinic_id,
         entity_id=item.id,
     )
     db.commit()
@@ -597,12 +802,65 @@ def create_support_ticket(
     )
     db.add(item)
     db.flush()
+    if payload.clinic_id is not None:
+        recipients = db.scalars(
+            select(ClinicMembership.account_id).where(
+                ClinicMembership.clinic_id == payload.clinic_id,
+                ClinicMembership.is_active.is_(True),
+            )
+        ).all()
+        for recipient_account_id in recipients:
+            if recipient_account_id != current_account.id:
+                create_notification(
+                    db,
+                    account_id=recipient_account_id,
+                    title="New support ticket",
+                    body=f"Ticket #{item.id}: {payload.topic}",
+                )
     audit(
         db,
         action="support_ticket.create",
         entity_type="support_ticket",
         actor=current_account,
         clinic_id=payload.clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/support/tickets/{ticket_id}", response_model=SupportTicketRead)
+def update_support_ticket(
+    ticket_id: int,
+    payload: SupportTicketUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> SupportTicket:
+    item = db.get(SupportTicket, ticket_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+    can_moderate = current_account.is_superuser or has_permission(
+        db, current_account, PermissionCode.support_manage
+    )
+    if not can_moderate and item.requester_account_id != current_account.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing support rights")
+    item.status = payload.status
+    if payload.message:
+        item.message = payload.message
+    db.add(item)
+    create_notification(
+        db,
+        account_id=item.requester_account_id,
+        title="Support ticket updated",
+        body=f"Ticket #{item.id} status changed to {item.status.value}",
+    )
+    audit(
+        db,
+        action="support_ticket.update",
+        entity_type="support_ticket",
+        actor=current_account,
+        clinic_id=item.clinic_id,
         entity_id=item.id,
     )
     db.commit()
@@ -618,3 +876,37 @@ def list_notifications(db: DbSession, current_account: CurrentAccount) -> list[N
         .order_by(Notification.id.desc())
     )
     return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/notifications/{notification_id}/read",
+    response_model=NotificationMarkReadResponse,
+)
+def mark_notification_read(
+    notification_id: int, db: DbSession, current_account: CurrentAccount
+) -> NotificationMarkReadResponse:
+    item = db.get(Notification, notification_id)
+    if item is None or item.account_id != current_account.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    if item.read_at is None:
+        item.read_at = item.updated_at
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+    return NotificationMarkReadResponse(id=item.id, read_at=item.read_at)
+
+
+@router.post("/notifications/read-all", response_model=dict[str, int])
+def mark_all_notifications_read(db: DbSession, current_account: CurrentAccount) -> dict[str, int]:
+    updated = 0
+    for item in db.scalars(
+        select(Notification).where(
+            Notification.account_id == current_account.id,
+            Notification.read_at.is_(None),
+        )
+    ).all():
+        item.read_at = item.updated_at
+        db.add(item)
+        updated += 1
+    db.commit()
+    return {"updated": updated}

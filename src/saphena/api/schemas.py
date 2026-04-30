@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from saphena.modules.enums import (
     AppointmentStatus,
@@ -10,6 +10,7 @@ from saphena.modules.enums import (
     SupportTicketStatus,
 )
 from saphena.modules.permissions import RoleCode
+from saphena.services.identity import is_valid_iin
 
 
 class PersonRead(BaseModel):
@@ -33,7 +34,7 @@ class AccountRead(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    iin: str = Field(min_length=12, max_length=12)
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
     password: str = Field(min_length=8, max_length=128)
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
@@ -41,10 +42,24 @@ class RegisterRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     email: EmailStr | None = None
 
+    @field_validator("iin")
+    @classmethod
+    def validate_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
+
 
 class LoginRequest(BaseModel):
-    iin: str = Field(min_length=12, max_length=12)
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
     password: str
+
+    @field_validator("iin")
+    @classmethod
+    def validate_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
 
 
 class LoginResponse(BaseModel):
@@ -56,7 +71,7 @@ class LoginResponse(BaseModel):
 class ClinicApplicationCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     legal_name: str = Field(min_length=1, max_length=255)
-    bin_iin: str = Field(min_length=10, max_length=32)
+    bin_iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
     address: str = Field(min_length=1, max_length=255)
     contacts: str | None = None
     founder_data: str | None = None
@@ -129,10 +144,17 @@ class RoleDefinitionRead(BaseModel):
 
 
 class ClinicEmployeeAssign(BaseModel):
-    iin: str = Field(min_length=12, max_length=12)
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
     role_code: RoleCode
     department: str | None = Field(default=None, max_length=120)
     position: str | None = Field(default=None, max_length=120)
+
+    @field_validator("iin")
+    @classmethod
+    def validate_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
 
 
 class AuditLogRead(BaseModel):
@@ -157,13 +179,20 @@ class BootstrapDemoResponse(BaseModel):
 
 
 class PatientCreate(BaseModel):
-    iin: str = Field(min_length=12, max_length=12)
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     middle_name: str | None = Field(default=None, max_length=100)
     phone: str | None = Field(default=None, max_length=32)
     email: EmailStr | None = None
     notes: str | None = None
+
+    @field_validator("iin")
+    @classmethod
+    def validate_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
 
 
 class PatientRead(BaseModel):
@@ -183,6 +212,12 @@ class AppointmentCreate(BaseModel):
     reason: str | None = None
     status: AppointmentStatus = AppointmentStatus.created
 
+    @model_validator(mode="after")
+    def validate_time_window(self) -> "AppointmentCreate":
+        if self.ends_at <= self.starts_at:
+            raise ValueError("ends_at must be greater than starts_at")
+        return self
+
 
 class AppointmentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -191,6 +226,35 @@ class AppointmentRead(BaseModel):
     clinic_id: int
     patient_profile_id: int
     doctor_membership_id: int | None = None
+    starts_at: datetime
+    ends_at: datetime
+    status: AppointmentStatus
+    reason: str | None = None
+
+
+class AppointmentUpdate(BaseModel):
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    status: AppointmentStatus | None = None
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def validate_time_window(self) -> "AppointmentUpdate":
+        if (
+            self.starts_at is not None
+            and self.ends_at is not None
+            and self.ends_at <= self.starts_at
+        ):
+            raise ValueError("ends_at must be greater than starts_at")
+        return self
+
+
+class ScheduleSlotRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    doctor_membership_id: int | None = None
+    patient_profile_id: int
     starts_at: datetime
     ends_at: datetime
     status: AppointmentStatus
@@ -289,6 +353,11 @@ class LeadRead(BaseModel):
     created_at: datetime
 
 
+class LeadUpdate(BaseModel):
+    status: LeadStatus | None = None
+    note: str | None = None
+
+
 class SupportTicketCreate(BaseModel):
     clinic_id: int | None = None
     topic: str = Field(min_length=1, max_length=120)
@@ -307,6 +376,11 @@ class SupportTicketRead(BaseModel):
     created_at: datetime
 
 
+class SupportTicketUpdate(BaseModel):
+    status: SupportTicketStatus
+    message: str | None = None
+
+
 class NotificationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -316,3 +390,8 @@ class NotificationRead(BaseModel):
     body: str
     read_at: datetime | None = None
     created_at: datetime
+
+
+class NotificationMarkReadResponse(BaseModel):
+    id: int
+    read_at: datetime

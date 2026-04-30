@@ -23,8 +23,40 @@ from saphena.modules.models import (
 from saphena.modules.permissions import PermissionCode, RoleCode
 from saphena.services.access import can_assign_role, has_permission
 from saphena.services.audit import audit
+from saphena.services.notifications import create_notification
 
 router = APIRouter(prefix="/clinics", tags=["clinics"])
+
+ALLOWED_APPLICATION_TRANSITIONS: dict[ClinicApplicationStatus, set[ClinicApplicationStatus]] = {
+    ClinicApplicationStatus.draft: {
+        ClinicApplicationStatus.submitted,
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.submitted: {
+        ClinicApplicationStatus.in_review,
+        ClinicApplicationStatus.needs_changes,
+        ClinicApplicationStatus.approved,
+        ClinicApplicationStatus.rejected,
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.in_review: {
+        ClinicApplicationStatus.needs_changes,
+        ClinicApplicationStatus.approved,
+        ClinicApplicationStatus.rejected,
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.needs_changes: {
+        ClinicApplicationStatus.submitted,
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.approved: {
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.rejected: {
+        ClinicApplicationStatus.blocked,
+    },
+    ClinicApplicationStatus.blocked: set(),
+}
 
 
 @router.post(
@@ -100,6 +132,12 @@ def moderate_application(
     item = db.get(ClinicApplication, application_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    allowed = ALLOWED_APPLICATION_TRANSITIONS.get(item.status, set())
+    if payload.status not in allowed and payload.status != item.status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Status transition {item.status.value}->{payload.status.value} is not allowed",
+        )
 
     if payload.status == ClinicApplicationStatus.approved and item.clinic_id is None:
         clinic = Clinic(
@@ -122,6 +160,15 @@ def moderate_application(
 
     item.status = payload.status
     item.moderator_comment = payload.moderator_comment
+    create_notification(
+        db,
+        account_id=item.applicant_account_id,
+        title="Clinic application status updated",
+        body=(
+            f"Application '{item.name}' is now {payload.status.value}. "
+            f"Comment: {payload.moderator_comment or '-'}"
+        ),
+    )
     audit(
         db,
         action=f"clinic_application.{payload.status.value}",

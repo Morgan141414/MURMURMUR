@@ -34,7 +34,7 @@ export function refreshToken(_refresh_token: string) {
 }
 
 export function logout(_refresh_token: string) {
-  return Promise.resolve({ data: { ok: true } })
+  return api.post('/auth/logout')
 }
 
 export function googleLogin(idToken: string) {

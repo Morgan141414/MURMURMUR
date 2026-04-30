@@ -1,10 +1,16 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from sqlalchemy import select
 
 from saphena.api.deps import CurrentAccount, DbSession
 from saphena.api.schemas import AccountRead, LoginRequest, LoginResponse, RegisterRequest
 from saphena.core.config import get_settings
-from saphena.core.security import expires_in, hash_password, new_session_token, verify_password
+from saphena.core.security import (
+    expires_in,
+    hash_password,
+    new_session_token,
+    utcnow,
+    verify_password,
+)
 from saphena.modules.models import Account, PatientProfile, Person, SessionToken
 from saphena.services.audit import audit
 
@@ -59,3 +65,28 @@ def login(payload: LoginRequest, request: Request, db: DbSession) -> LoginRespon
 @router.get("/me", response_model=AccountRead)
 def me(current_account: CurrentAccount) -> Account:
     return current_account
+
+
+@router.post("/logout", response_model=dict[str, bool])
+def logout(
+    db: DbSession,
+    current_account: CurrentAccount,
+    authorization: str | None = Header(default=None),
+) -> dict[str, bool]:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing bearer token")
+    token_value = authorization.split(" ", 1)[1].strip()
+    session_token = db.scalar(
+        select(SessionToken).where(
+            SessionToken.token == token_value,
+            SessionToken.account_id == current_account.id,
+            SessionToken.revoked_at.is_(None),
+        )
+    )
+    if session_token is None:
+        return {"ok": True}
+    session_token.revoked_at = utcnow()
+    db.add(session_token)
+    audit(db, action="auth.logout", entity_type="session_token", actor=current_account)
+    db.commit()
+    return {"ok": True}

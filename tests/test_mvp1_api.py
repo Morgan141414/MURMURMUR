@@ -1,6 +1,6 @@
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 os.environ["SAPHENA_DATABASE_URL"] = f"sqlite:///{tempfile.NamedTemporaryFile(delete=False).name}"
 
@@ -15,6 +15,19 @@ client = TestClient(app)
 
 def setup_module() -> None:
     create_schema()
+
+
+def build_valid_iin(prefix11: str) -> str:
+    assert len(prefix11) == 11 and prefix11.isdigit()
+    digits = [int(char) for char in prefix11]
+    base_weights = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    checksum = sum(d * w for d, w in zip(digits, base_weights, strict=False)) % 11
+    if checksum == 10:
+        fallback_weights = [3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2]
+        checksum = sum(d * w for d, w in zip(digits, fallback_weights, strict=False)) % 11
+    if checksum == 10:
+        return build_valid_iin(str(int(prefix11) + 1).zfill(11))
+    return f"{prefix11}{checksum}"
 
 
 def register_user(iin: str, password: str = "StrongPass123") -> dict:
@@ -49,22 +62,25 @@ def make_superuser(account_id: int) -> None:
 
 
 def test_register_login_and_me() -> None:
-    user = register_user("123456789012")
-    token = login("123456789012")
+    iin = build_valid_iin("92010100001")
+    user = register_user(iin)
+    token = login(iin)
 
     response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     assert response.json()["id"] == user["id"]
-    assert response.json()["person"]["iin"] == "123456789012"
+    assert response.json()["person"]["iin"] == iin
 
 
 def test_clinic_application_approval_creates_clinic_and_founder_membership() -> None:
-    register_user("123456789013")
-    founder_token = login("123456789013")
-    moderator = register_user("123456789014")
+    founder_iin = build_valid_iin("92010100002")
+    moderator_iin = build_valid_iin("92010100003")
+    register_user(founder_iin)
+    founder_token = login(founder_iin)
+    moderator = register_user(moderator_iin)
     make_superuser(moderator["id"])
-    moderator_token = login("123456789014")
+    moderator_token = login(moderator_iin)
 
     create_response = client.post(
         "/api/v1/clinics/applications",
@@ -118,12 +134,15 @@ def test_clinic_application_approval_creates_clinic_and_founder_membership() -> 
 
 
 def test_founder_can_assign_employee_and_view_role_catalog() -> None:
-    register_user("123456789015")
-    founder_token = login("123456789015")
-    moderator = register_user("123456789016")
+    founder_iin = build_valid_iin("92010100004")
+    moderator_iin = build_valid_iin("92010100005")
+    doctor_iin = build_valid_iin("92010100006")
+    register_user(founder_iin)
+    founder_token = login(founder_iin)
+    moderator = register_user(moderator_iin)
     make_superuser(moderator["id"])
-    moderator_token = login("123456789016")
-    register_user("123456789017")
+    moderator_token = login(moderator_iin)
+    register_user(doctor_iin)
 
     application_response = client.post(
         "/api/v1/clinics/applications",
@@ -159,7 +178,7 @@ def test_founder_can_assign_employee_and_view_role_catalog() -> None:
         f"/api/v1/clinics/{clinic_id}/employees",
         headers={"Authorization": f"Bearer {founder_token}"},
         json={
-            "iin": "123456789017",
+            "iin": doctor_iin,
             "role_code": "doctor",
             "department": "Therapy",
             "position": "Doctor",
@@ -181,12 +200,17 @@ def test_founder_can_assign_employee_and_view_role_catalog() -> None:
 
 
 def test_clinic_patient_appointment_and_medical_record_flow() -> None:
-    register_user("123456789018")
-    founder_token = login("123456789018")
-    moderator = register_user("123456789019")
+    founder_iin = build_valid_iin("92010100007")
+    moderator_iin = build_valid_iin("92010100008")
+    doctor_iin = build_valid_iin("92010100009")
+    patient_iin = build_valid_iin("92010100010")
+
+    register_user(founder_iin)
+    founder_token = login(founder_iin)
+    moderator = register_user(moderator_iin)
     make_superuser(moderator["id"])
-    moderator_token = login("123456789019")
-    register_user("123456789020")
+    moderator_token = login(moderator_iin)
+    register_user(doctor_iin)
 
     application_response = client.post(
         "/api/v1/clinics/applications",
@@ -215,7 +239,7 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
         f"/api/v1/clinics/{clinic_id}/employees",
         headers={"Authorization": f"Bearer {founder_token}"},
         json={
-            "iin": "123456789020",
+            "iin": doctor_iin,
             "role_code": "doctor",
             "department": "Therapy",
             "position": "Doctor",
@@ -228,7 +252,7 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
         "/api/v1/patients",
         headers={"Authorization": f"Bearer {founder_token}"},
         json={
-            "iin": "123456789021",
+            "iin": patient_iin,
             "first_name": "Patient",
             "last_name": "One",
             "phone": "+77000000021",
@@ -244,7 +268,7 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert attach_response.status_code == 201, attach_response.text
 
-    starts_at = datetime.utcnow().replace(microsecond=0)
+    starts_at = datetime.now(UTC).replace(tzinfo=None, microsecond=0)
     ends_at = starts_at + timedelta(minutes=30)
     appointment_response = client.post(
         f"/api/v1/clinics/{clinic_id}/appointments",
@@ -327,3 +351,42 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert generated_list_response.status_code == 200, generated_list_response.text
     assert any(item["code"] == "initial_exam" for item in generated_list_response.json())
+
+    overlap_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/appointments",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "patient_profile_id": patient_id,
+            "doctor_membership_id": doctor_membership_id,
+            "starts_at": (starts_at + timedelta(minutes=10)).isoformat(),
+            "ends_at": (ends_at + timedelta(minutes=10)).isoformat(),
+            "reason": "Overbooking check",
+        },
+    )
+    assert overlap_response.status_code == 409, overlap_response.text
+
+    schedule_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/schedule",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert schedule_response.status_code == 200, schedule_response.text
+    assert any(slot["id"] == appointment_id for slot in schedule_response.json())
+
+    mark_one_notification = client.post(
+        "/api/v1/notifications/read-all",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert mark_one_notification.status_code == 200, mark_one_notification.text
+
+
+def test_invalid_iin_rejected() -> None:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "iin": "123456789012",
+            "password": "StrongPass123",
+            "first_name": "Invalid",
+            "last_name": "IIN",
+        },
+    )
+    assert response.status_code == 422, response.text
