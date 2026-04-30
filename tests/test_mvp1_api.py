@@ -285,3 +285,22 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
         item["appointment_id"] == appointment_id and item["diagnosis"] == "Tension headache"
         for item in list_records_response.json()
     )
+
+    template_create_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/documents/templates",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "code": "initial_exam",
+            "title": "Первичный осмотр",
+            "body": "Жалобы: {{complaint}}\\nДиагноз: {{diagnosis}}",
+        },
+    )
+    assert template_create_response.status_code == 201, template_create_response.text
+    assert template_create_response.json()["code"] == "initial_exam"
+
+    templates_list_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/documents/templates",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert templates_list_response.status_code == 200, templates_list_response.text
+    assert any(item["code"] == "initial_exam" for item in templates_list_response.json())

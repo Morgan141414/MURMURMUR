@@ -5,6 +5,8 @@ from saphena.api.deps import CurrentAccount, DbSession
 from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
+    DocumentTemplateCreate,
+    DocumentTemplateRead,
     LeadCreate,
     LeadRead,
     MedicalRecordEntryCreate,
@@ -21,6 +23,7 @@ from saphena.modules.models import (
     Appointment,
     ClinicPatient,
     CrmLead,
+    DocumentTemplate,
     MedicalRecordEntry,
     Notification,
     PatientProfile,
@@ -271,6 +274,86 @@ def create_medical_record(
         db,
         action="medical_record.create",
         entity_type="medical_record_entry",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get(
+    "/clinics/{clinic_id}/documents/templates",
+    response_model=list[DocumentTemplateRead],
+)
+def list_document_templates(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[DocumentTemplate]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.document_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing document template access",
+        )
+    stmt = (
+        select(DocumentTemplate)
+        .where(DocumentTemplate.clinic_id == clinic_id)
+        .order_by(DocumentTemplate.updated_at.desc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/documents/templates",
+    response_model=DocumentTemplateRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_document_template(
+    clinic_id: int,
+    payload: DocumentTemplateCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> DocumentTemplate:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.document_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing document template rights",
+        )
+    existing = db.scalar(
+        select(DocumentTemplate).where(
+            DocumentTemplate.clinic_id == clinic_id,
+            DocumentTemplate.code == payload.code,
+        )
+    )
+    if existing is not None:
+        existing.title = payload.title
+        existing.body = payload.body
+        db.add(existing)
+        db.flush()
+        item = existing
+        action = "document_template.updated"
+    else:
+        item = DocumentTemplate(
+            clinic_id=clinic_id,
+            code=payload.code,
+            title=payload.title,
+            body=payload.body,
+        )
+        db.add(item)
+        db.flush()
+        action = "document_template.created"
+
+    audit(
+        db,
+        action=action,
+        entity_type="document_template",
         actor=current_account,
         clinic_id=clinic_id,
         entity_id=item.id,

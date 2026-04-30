@@ -224,6 +224,24 @@ class MedicalRecordEntryRead(BaseModel):
     created_at: datetime
 
 
+class DocumentTemplateCreate(BaseModel):
+    code: str = Field(min_length=2, max_length=80)
+    title: str = Field(min_length=1, max_length=255)
+    body: str = Field(min_length=1)
+
+
+class DocumentTemplateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int | None = None
+    code: str
+    title: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class LeadCreate(BaseModel):
     clinic_id: int
     full_name: str = Field(min_length=1, max_length=255)
