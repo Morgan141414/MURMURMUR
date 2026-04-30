@@ -31,11 +31,19 @@ import { OnboardingFlow } from '@/components/shared/OnboardingFlow'
 import { listTodayTasks, updateTask } from '@/api/tasks'
 import { listProjects } from '@/api/projects'
 import { createDailyReport } from '@/api/dailyReports'
+import {
+  createClinicApplication,
+  listClinicApplications,
+  type ClinicApplication,
+  type ClinicApplicationStatus,
+} from '@/api/clinicApplications'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { ActivityItem } from '@/components/shared/ActivityItem'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 /* ═══════════════════════════════════════════════════
@@ -47,13 +55,45 @@ function PersonalDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
   const fullName = useAuthStore((s) => s.fullName)
+  const email = useAuthStore((s) => s.email)
   const { orgs, setActiveOrg, activeOrg } = useOrgStore()
+  const [applicationsLoading, setApplicationsLoading] = useState(false)
+  const [submittingApplication, setSubmittingApplication] = useState(false)
+  const [applications, setApplications] = useState<ClinicApplication[]>([])
+  const [applicationForm, setApplicationForm] = useState({
+    name: '',
+    legal_name: '',
+    bin_iin: '',
+    address: '',
+    contacts: '',
+    founder_data: fullName ? `${fullName}${email ? ` · ${email}` : ''}` : '',
+    requisites: '',
+    license_info: '',
+    oked: '',
+    activity_description: '',
+  })
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('onboarding-dismissed') === 'true',
   )
   const forceCreateOrg = new URLSearchParams(location.search).get('createOrg') === '1'
   const editOrgId = new URLSearchParams(location.search).get('editOrg')
   const selectedOrg = activeOrg()
+
+  const loadApplications = useCallback(async () => {
+    setApplicationsLoading(true)
+    try {
+      const { data } = await listClinicApplications()
+      setApplications(data)
+    } catch {
+      setApplications([])
+    } finally {
+      setApplicationsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadApplications()
+  }, [loadApplications])
 
   const handleDismissOnboarding = useCallback(() => {
     localStorage.setItem('onboarding-dismissed', 'true')
@@ -79,6 +119,44 @@ function PersonalDashboard() {
     { label: t('nav.messenger'), description: 'Messages, channels & discussions', icon: MessageSquare, to: '/messenger', iconClass: 'icon-violet' },
     { label: t('nav.ratings'), description: 'Ratings & internal reputation', icon: Star, to: '/ratings', iconClass: 'icon-amber' },
   ]
+
+  const latestApplication = applications[0] ?? null
+  const hasPendingApplication = applications.some((item) =>
+    ['submitted', 'in_review', 'needs_changes'].includes(item.status),
+  )
+
+  async function handleSubmitClinicApplication() {
+    if (
+      !applicationForm.name.trim()
+      || !applicationForm.legal_name.trim()
+      || !applicationForm.bin_iin.trim()
+      || !applicationForm.address.trim()
+    ) {
+      toast.error('Заполните название клиники, юр. лицо, БИН/ИИН и адрес')
+      return
+    }
+
+    setSubmittingApplication(true)
+    try {
+      await createClinicApplication({
+        ...applicationForm,
+        submit: true,
+      })
+      toast.success('Заявка клиники отправлена на модерацию')
+      setApplicationForm((current) => ({
+        ...current,
+        requisites: '',
+        license_info: '',
+        oked: '',
+        activity_description: '',
+      }))
+      await loadApplications()
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Не удалось отправить заявку')
+    } finally {
+      setSubmittingApplication(false)
+    }
+  }
 
   return (
     <div className="page-enter space-y-5">
@@ -206,6 +284,182 @@ function PersonalDashboard() {
         </div>
       </section>
 
+      <section className="enterprise-card rounded-xl p-5 animate-fade-in-up stagger-2">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="icon-container icon-container-sm icon-green rounded-md">
+              <Building2 className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-foreground">Заявка на создание клиники</h3>
+              <p className="text-[12px] text-text-tertiary">Founder-поток для MVP1: отправка, доработка и ожидание модерации</p>
+            </div>
+          </div>
+          {latestApplication ? (
+            <span className={cn(
+              'rounded-full border px-2.5 py-1 text-[11px] font-medium',
+              clinicApplicationStatusBadgeClass(latestApplication.status),
+            )}>
+              {clinicApplicationStatusLabel(latestApplication.status)}
+            </span>
+          ) : null}
+        </div>
+
+        {latestApplication ? (
+          <div className="mb-4 rounded-lg border border-border/60 bg-background/60 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-medium text-foreground">{latestApplication.name}</p>
+                <p className="mt-1 text-[12px] text-text-tertiary">
+                  {latestApplication.legal_name} · {latestApplication.bin_iin}
+                </p>
+              </div>
+              <div className="text-right text-[12px] text-text-tertiary">
+                <div>Подана {new Date(latestApplication.created_at).toLocaleDateString('ru-RU')}</div>
+                {latestApplication.clinic_id ? <div>Clinic ID: {latestApplication.clinic_id}</div> : null}
+              </div>
+            </div>
+            {latestApplication.moderator_comment ? (
+              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-200">
+                {latestApplication.moderator_comment}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="block text-[12px] font-medium text-foreground">
+              Название клиники
+              <Input
+                className="mt-1 h-10"
+                value={applicationForm.name}
+                onChange={(e) => setApplicationForm((current) => ({ ...current, name: e.target.value }))}
+                placeholder="Amanat Clinic"
+                disabled={submittingApplication || hasPendingApplication}
+              />
+            </label>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[12px] font-medium text-foreground">
+              Юридическое название
+              <Input
+                className="mt-1 h-10"
+                value={applicationForm.legal_name}
+                onChange={(e) => setApplicationForm((current) => ({ ...current, legal_name: e.target.value }))}
+                placeholder="Amanat Clinic LLP"
+                disabled={submittingApplication || hasPendingApplication}
+              />
+            </label>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[12px] font-medium text-foreground">
+              БИН / ИИН
+              <Input
+                className="mt-1 h-10"
+                value={applicationForm.bin_iin}
+                onChange={(e) => setApplicationForm((current) => ({ ...current, bin_iin: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+                placeholder="12 цифр"
+                disabled={submittingApplication || hasPendingApplication}
+              />
+            </label>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[12px] font-medium text-foreground">
+              Контакты
+              <Input
+                className="mt-1 h-10"
+                value={applicationForm.contacts}
+                onChange={(e) => setApplicationForm((current) => ({ ...current, contacts: e.target.value }))}
+                placeholder="+7 700 000 00 00"
+                disabled={submittingApplication || hasPendingApplication}
+              />
+            </label>
+          </div>
+        </div>
+
+        <label className="mt-3 block text-[12px] font-medium text-foreground">
+          Адрес
+          <Input
+            className="mt-1 h-10"
+            value={applicationForm.address}
+            onChange={(e) => setApplicationForm((current) => ({ ...current, address: e.target.value }))}
+            placeholder="Алматы, Абая 1"
+            disabled={submittingApplication || hasPendingApplication}
+          />
+        </label>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block text-[12px] font-medium text-foreground">
+            Founder / контакты заявителя
+            <Textarea
+              className="mt-1 min-h-[96px]"
+              value={applicationForm.founder_data}
+              onChange={(e) => setApplicationForm((current) => ({ ...current, founder_data: e.target.value }))}
+              placeholder="ФИО, доля, контакты"
+              disabled={submittingApplication || hasPendingApplication}
+            />
+          </label>
+          <label className="block text-[12px] font-medium text-foreground">
+            Описание деятельности
+            <Textarea
+              className="mt-1 min-h-[96px]"
+              value={applicationForm.activity_description}
+              onChange={(e) => setApplicationForm((current) => ({ ...current, activity_description: e.target.value }))}
+              placeholder="Амбулаторный прием, диагностика, дневной стационар..."
+              disabled={submittingApplication || hasPendingApplication}
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="block text-[12px] font-medium text-foreground">
+            Реквизиты
+            <Input
+              className="mt-1 h-10"
+              value={applicationForm.requisites}
+              onChange={(e) => setApplicationForm((current) => ({ ...current, requisites: e.target.value }))}
+              placeholder="KZ..."
+              disabled={submittingApplication || hasPendingApplication}
+            />
+          </label>
+          <label className="block text-[12px] font-medium text-foreground">
+            Лицензия
+            <Input
+              className="mt-1 h-10"
+              value={applicationForm.license_info}
+              onChange={(e) => setApplicationForm((current) => ({ ...current, license_info: e.target.value }))}
+              placeholder="№ лицензии"
+              disabled={submittingApplication || hasPendingApplication}
+            />
+          </label>
+          <label className="block text-[12px] font-medium text-foreground">
+            ОКЭД
+            <Input
+              className="mt-1 h-10"
+              value={applicationForm.oked}
+              onChange={(e) => setApplicationForm((current) => ({ ...current, oked: e.target.value }))}
+              placeholder="86210"
+              disabled={submittingApplication || hasPendingApplication}
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button onClick={() => void handleSubmitClinicApplication()} disabled={submittingApplication || hasPendingApplication}>
+            {submittingApplication ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+            Отправить заявку
+          </Button>
+          {applicationsLoading ? (
+            <span className="text-[12px] text-text-tertiary">Обновляем статус...</span>
+          ) : hasPendingApplication ? (
+            <span className="text-[12px] text-amber-300">Пока одна заявка находится на модерации, новую отправлять не нужно.</span>
+          ) : (
+            <span className="text-[12px] text-text-tertiary">После одобрения клиника появится в рабочем контексте founder.</span>
+          )}
+        </div>
+      </section>
+
       {/* Quick actions */}
       <section className="enterprise-card rounded-xl p-5 animate-fade-in-up stagger-3">
         <div className="mb-4 flex items-center gap-3">
@@ -237,6 +491,42 @@ function PersonalDashboard() {
       </section>
     </div>
   )
+}
+
+function clinicApplicationStatusLabel(status: ClinicApplicationStatus) {
+  switch (status) {
+    case 'submitted':
+      return 'Отправлена'
+    case 'in_review':
+      return 'На проверке'
+    case 'needs_changes':
+      return 'Нужны правки'
+    case 'approved':
+      return 'Одобрена'
+    case 'rejected':
+      return 'Отклонена'
+    case 'blocked':
+      return 'Заблокирована'
+    default:
+      return 'Черновик'
+  }
+}
+
+function clinicApplicationStatusBadgeClass(status: ClinicApplicationStatus) {
+  switch (status) {
+    case 'approved':
+      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+    case 'rejected':
+    case 'blocked':
+      return 'border-red-500/20 bg-red-500/10 text-red-300'
+    case 'needs_changes':
+      return 'border-blue-500/20 bg-blue-500/10 text-blue-300'
+    case 'submitted':
+    case 'in_review':
+      return 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+    default:
+      return 'border-border bg-card text-muted-foreground'
+  }
 }
 
 /* ═══════════════════════════════════════════════════
