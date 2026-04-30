@@ -33,6 +33,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { LoadingSkeleton } from '@/components/shared/LoadingState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { AvatarImage } from '@/components/shared/AvatarImage'
+import { DocumentTemplatePanel } from '@/pages/company/DocumentTemplatePanel'
 
 
 declare global {
@@ -292,6 +293,11 @@ export default function CompanyDocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const prefetchedEditorDocsRef = useRef<Set<string>>(new Set())
   const [onlyOfficeLoadError, setOnlyOfficeLoadError] = useState('')
+  const clinicId = useMemo(() => {
+    if (!activeOrgId) return null
+    const parsed = Number(activeOrgId)
+    return Number.isFinite(parsed) ? parsed : null
+  }, [activeOrgId])
 
 
   const prefetchEditorAssets = useCallback((document: HRDocument, force = false) => {
@@ -1022,6 +1028,8 @@ export default function CompanyDocumentsPage() {
   }
   return (
     <div className="space-y-4">
+      <DocumentTemplatePanel clinicId={clinicId} />
+
       <PageHeader
         title="Документы"
         description="Создавайте документы и папки, делитесь доступом и редактируйте файлы."
