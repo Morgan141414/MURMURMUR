@@ -1,0 +1,31 @@
+/* FaqPage styles */
+.faq-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0;
+}
+
+.faq-question {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.faq-answer {
+  padding-top: 0.5rem;
+  color: var(--muted-foreground);
+}
+
+.faq-search {
+  margin-bottom: 2rem;
+}
+
+.faq-category {
+  margin-bottom: 1.5rem;
+}
