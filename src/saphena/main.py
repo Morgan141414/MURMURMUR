@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -35,6 +35,12 @@ def create_app() -> FastAPI:
 
         @app.get("/", include_in_schema=False)
         def index() -> FileResponse:
+            return FileResponse(WEB_DIR / "index.html")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def spa_fallback(full_path: str) -> FileResponse:
+            if full_path.startswith(("api/", "assets/")):
+                raise HTTPException(status_code=404, detail="Not found")
             return FileResponse(WEB_DIR / "index.html")
 
     return app
