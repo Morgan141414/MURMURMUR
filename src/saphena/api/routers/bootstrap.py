@@ -24,8 +24,8 @@ from saphena.modules.permissions import RoleCode
 
 router = APIRouter(prefix="/bootstrap", tags=["bootstrap"])
 
-SUPERADMIN_IIN = "700101000001"
-FOUNDER_IIN = "700101000002"
+SUPERADMIN_IIN = "700101000006"
+FOUNDER_IIN = "700101000016"
 DEFAULT_PASSWORD = "DemoPass123"
 
 
@@ -88,7 +88,7 @@ def bootstrap_demo(db: DbSession) -> BootstrapDemoResponse:
     )
     _, doctor_account, doctor_patient = _ensure_person_account(
         db,
-        iin="700101000003",
+        iin="700101000026",
         first_name="Dana",
         last_name="Doctor",
         phone="+77010000003",
@@ -96,7 +96,7 @@ def bootstrap_demo(db: DbSession) -> BootstrapDemoResponse:
     )
     _, patient_account, patient_profile = _ensure_person_account(
         db,
-        iin="700101000004",
+        iin="700101000036",
         first_name="Alina",
         last_name="Patient",
         phone="+77010000004",
