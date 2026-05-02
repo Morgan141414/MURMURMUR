@@ -33,6 +33,13 @@ class AppointmentStatus(StrEnum):
     rescheduled = "rescheduled"
 
 
+class ScheduleSlotStatus(StrEnum):
+    available = "available"
+    booked = "booked"
+    blocked = "blocked"
+    canceled = "canceled"
+
+
 class SupportTicketStatus(StrEnum):
     open = "open"
     in_progress = "in_progress"

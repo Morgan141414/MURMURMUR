@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarCheck2, ClipboardPlus, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
+import { CalendarClock, CalendarCheck2, ClipboardPlus, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
 import {
   attachPatientToClinic,
   createAppointment,
   createMedicalRecord,
   createPatient,
+  createScheduleSlot,
   listAppointments,
+  listClinicEmployees,
   listClinicPatients,
   listMedicalRecords,
+  listScheduleSlots,
   type Appointment,
+  type ClinicMembership,
   type MedicalRecordEntry,
   type Patient,
+  type ScheduleSlot,
 } from '@/api/clinical'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -39,6 +44,8 @@ export default function ClinicalWorkspacePage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecordEntry[]>([])
+  const [employees, setEmployees] = useState<ClinicMembership[]>([])
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
 
   const [patientIin, setPatientIin] = useState('')
@@ -49,6 +56,11 @@ export default function ClinicalWorkspacePage() {
   const [appointmentDate, setAppointmentDate] = useState('')
   const [appointmentReason, setAppointmentReason] = useState('')
 
+  const [slotDoctorMembershipId, setSlotDoctorMembershipId] = useState('')
+  const [slotDate, setSlotDate] = useState('')
+  const [slotDuration, setSlotDuration] = useState('30')
+  const [slotNote, setSlotNote] = useState('')
+
   const [recordPatientId, setRecordPatientId] = useState('')
   const [recordAppointmentId, setRecordAppointmentId] = useState('')
   const [recordDiagnosis, setRecordDiagnosis] = useState('')
@@ -58,14 +70,24 @@ export default function ClinicalWorkspacePage() {
     if (!clinicId) return
     setLoading(true)
     try {
-      const [patientsResponse, appointmentsResponse, medicalRecordsResponse] = await Promise.all([
+      const [
+        patientsResponse,
+        appointmentsResponse,
+        medicalRecordsResponse,
+        employeesResponse,
+        scheduleSlotsResponse,
+      ] = await Promise.all([
         listClinicPatients(clinicId),
         listAppointments(clinicId),
         listMedicalRecords(clinicId),
+        listClinicEmployees(clinicId),
+        listScheduleSlots(clinicId),
       ])
       setPatients(patientsResponse.data)
       setAppointments(appointmentsResponse.data)
       setMedicalRecords(medicalRecordsResponse.data)
+      setEmployees(employeesResponse.data)
+      setScheduleSlots(scheduleSlotsResponse.data)
     } catch {
       toast.error('Не удалось загрузить клинические данные')
     } finally {
@@ -125,6 +147,32 @@ export default function ClinicalWorkspacePage() {
     }
   }
 
+  async function handleCreateScheduleSlot() {
+    if (!clinicId) return
+    const doctorMembershipId = Number(slotDoctorMembershipId)
+    const durationMinutes = Number(slotDuration) || 30
+    if (!doctorMembershipId || !slotDate) {
+      toast.error('Выберите врача и время слота')
+      return
+    }
+    const startsAt = new Date(slotDate)
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000)
+    try {
+      await createScheduleSlot(clinicId, {
+        doctor_membership_id: doctorMembershipId,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        note: slotNote || undefined,
+      })
+      toast.success('Слот расписания создан')
+      setSlotDate('')
+      setSlotNote('')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось создать слот. Возможно, время пересекается с другим слотом врача.')
+    }
+  }
+
   async function handleCreateMedicalRecord() {
     if (!clinicId) return
     const patientId = Number(recordPatientId)
@@ -151,6 +199,12 @@ export default function ClinicalWorkspacePage() {
 
   const todayAppointments = appointments.filter((appointment) =>
     new Date(appointment.starts_at).toDateString() === new Date().toDateString(),
+  ).length
+  const availableDoctors = employees.filter((employee) =>
+    ['clinic_founder', 'clinic_ceo', 'chief_doctor', 'doctor'].includes(employee.role_code),
+  )
+  const todaySlots = scheduleSlots.filter((slot) =>
+    new Date(slot.starts_at).toDateString() === new Date().toDateString(),
   ).length
 
   return (
@@ -184,6 +238,11 @@ export default function ClinicalWorkspacePage() {
           <FileText className="h-6 w-6 text-emerald-700" />
           <p className="mt-4 text-sm text-slate-500">Записи медкарты</p>
           <p className="text-3xl font-bold text-slate-950">{medicalRecords.length}</p>
+        </div>
+        <div className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm">
+          <CalendarClock className="h-6 w-6 text-indigo-700" />
+          <p className="mt-4 text-sm text-slate-500">Слоты расписания</p>
+          <p className="text-3xl font-bold text-slate-950">{scheduleSlots.length}</p>
         </div>
       </section>
 
@@ -232,6 +291,37 @@ export default function ClinicalWorkspacePage() {
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
+            <CalendarClock className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-950">Рабочий слот врача</h3>
+            <p className="text-sm text-slate-500">Планируйте доступные окна врача без пересечений</p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <FieldLabel label="Врач">
+            <select value={slotDoctorMembershipId} onChange={(event) => setSlotDoctorMembershipId(event.target.value)} className={inputClass}>
+              <option value="">Выберите врача</option>
+              {availableDoctors.map((employee) => <option key={employee.id} value={String(employee.id)}>#{employee.id} {employee.position || employee.role_code}</option>)}
+            </select>
+          </FieldLabel>
+          <FieldLabel label="Дата и время"><input type="datetime-local" value={slotDate} onChange={(event) => setSlotDate(event.target.value)} className={inputClass} /></FieldLabel>
+          <FieldLabel label="Длительность">
+            <select value={slotDuration} onChange={(event) => setSlotDuration(event.target.value)} className={inputClass}>
+              <option value="15">15 минут</option>
+              <option value="30">30 минут</option>
+              <option value="45">45 минут</option>
+              <option value="60">60 минут</option>
+            </select>
+          </FieldLabel>
+          <FieldLabel label="Комментарий"><input value={slotNote} onChange={(event) => setSlotNote(event.target.value)} placeholder="Приём терапевта" className={inputClass} /></FieldLabel>
+        </div>
+        <Button className="mt-4" onClick={() => void handleCreateScheduleSlot()} disabled={!clinicId}>Создать слот</Button>
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
             <ClipboardPlus className="h-5 w-5" />
           </div>
@@ -259,7 +349,7 @@ export default function ClinicalWorkspacePage() {
         <Button className="mt-4" onClick={() => void handleCreateMedicalRecord()} disabled={!clinicId}>Добавить в медкарту</Button>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid gap-4 lg:grid-cols-4">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-950"><UsersRound className="h-5 w-5 text-cyan-700" /> Пациенты</h4>
           <div className="space-y-2 text-sm">
@@ -279,6 +369,14 @@ export default function ClinicalWorkspacePage() {
           <div className="space-y-2 text-sm">
             {medicalRecords.slice(0, 10).map((record) => <p key={record.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-slate-700">#{record.id} {record.diagnosis || 'Без диагноза'}</p>)}
             {medicalRecords.length === 0 ? <p className="text-slate-500">Пока нет записей медкарты.</p> : null}
+          </div>
+        </div>
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-950"><CalendarClock className="h-5 w-5 text-indigo-700" /> Расписание</h4>
+          <div className="space-y-2 text-sm">
+            <p className="rounded-2xl bg-indigo-50 px-3 py-2 font-semibold text-indigo-800">Сегодня: {todaySlots}</p>
+            {scheduleSlots.slice(0, 8).map((slot) => <p key={slot.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-slate-700">#{slot.id} {new Date(slot.starts_at).toLocaleString('ru-RU')} · {slot.status}</p>)}
+            {scheduleSlots.length === 0 ? <p className="text-slate-500">Пока нет рабочих слотов.</p> : null}
           </div>
         </div>
       </section>

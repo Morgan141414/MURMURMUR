@@ -270,6 +270,38 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
 
     starts_at = datetime.now(UTC).replace(tzinfo=None, microsecond=0)
     ends_at = starts_at + timedelta(minutes=30)
+    schedule_slot_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/schedule/slots",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "doctor_membership_id": doctor_membership_id,
+            "starts_at": starts_at.isoformat(),
+            "ends_at": ends_at.isoformat(),
+            "note": "Primary consultation window",
+        },
+    )
+    assert schedule_slot_response.status_code == 201, schedule_slot_response.text
+    schedule_slot_id = schedule_slot_response.json()["id"]
+
+    overlapping_slot_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/schedule/slots",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "doctor_membership_id": doctor_membership_id,
+            "starts_at": (starts_at + timedelta(minutes=10)).isoformat(),
+            "ends_at": (ends_at + timedelta(minutes=10)).isoformat(),
+            "note": "Overlapping schedule slot",
+        },
+    )
+    assert overlapping_slot_response.status_code == 409, overlapping_slot_response.text
+
+    schedule_slots_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/schedule/slots",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert schedule_slots_response.status_code == 200, schedule_slots_response.text
+    assert any(slot["id"] == schedule_slot_id for slot in schedule_slots_response.json())
+
     appointment_response = client.post(
         f"/api/v1/clinics/{clinic_id}/appointments",
         headers={"Authorization": f"Bearer {founder_token}"},

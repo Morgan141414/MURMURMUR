@@ -45,6 +45,34 @@ export interface Appointment {
   reason?: string | null
 }
 
+export interface ClinicMembership {
+  id: number
+  clinic_id: number
+  account_id: number
+  role_code: string
+  department?: string | null
+  position?: string | null
+  is_active: boolean
+}
+
+export interface ScheduleSlotCreatePayload {
+  doctor_membership_id: number
+  starts_at: string
+  ends_at: string
+  status?: 'available' | 'booked' | 'blocked' | 'canceled'
+  note?: string | null
+}
+
+export interface ScheduleSlot {
+  id: number
+  clinic_id: number
+  doctor_membership_id: number
+  starts_at: string
+  ends_at: string
+  status: 'available' | 'booked' | 'blocked' | 'canceled'
+  note?: string | null
+}
+
 export interface MedicalRecordCreatePayload {
   patient_profile_id: number
   author_membership_id?: number | null
@@ -88,6 +116,18 @@ export function createAppointment(clinicId: number, payload: AppointmentCreatePa
 
 export function listAppointments(clinicId: number) {
   return api.get<Appointment[]>(`/clinics/${clinicId}/appointments`)
+}
+
+export function listClinicEmployees(clinicId: number) {
+  return api.get<ClinicMembership[]>(`/clinics/${clinicId}/employees`)
+}
+
+export function createScheduleSlot(clinicId: number, payload: ScheduleSlotCreatePayload) {
+  return api.post<ScheduleSlot>(`/clinics/${clinicId}/schedule/slots`, payload)
+}
+
+export function listScheduleSlots(clinicId: number) {
+  return api.get<ScheduleSlot[]>(`/clinics/${clinicId}/schedule/slots`)
 }
 
 export function createMedicalRecord(clinicId: number, payload: MedicalRecordCreatePayload) {

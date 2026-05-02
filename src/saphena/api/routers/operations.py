@@ -9,6 +9,9 @@ from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
     AppointmentUpdate,
+    DoctorScheduleSlotCreate,
+    DoctorScheduleSlotRead,
+    DoctorScheduleSlotUpdate,
     DocumentRenderRequest,
     DocumentTemplateCreate,
     DocumentTemplateRead,
@@ -41,6 +44,7 @@ from saphena.modules.models import (
     Notification,
     PatientProfile,
     Person,
+    ScheduleSlot,
     SupportTicket,
 )
 from saphena.modules.permissions import PermissionCode
@@ -188,6 +192,43 @@ def _ensure_patient_attached(db: DbSession, *, clinic_id: int, patient_profile_i
         )
 
 
+def _ensure_doctor_membership(
+    db: DbSession, *, clinic_id: int, doctor_membership_id: int
+) -> ClinicMembership:
+    doctor_membership = db.get(ClinicMembership, doctor_membership_id)
+    if doctor_membership is None or doctor_membership.clinic_id != clinic_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="doctor_membership_id is not valid for selected clinic",
+        )
+    return doctor_membership
+
+
+def _ensure_slot_window_is_free(
+    db: DbSession,
+    *,
+    clinic_id: int,
+    doctor_membership_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    exclude_slot_id: int | None = None,
+) -> None:
+    stmt = select(ScheduleSlot).where(
+        ScheduleSlot.clinic_id == clinic_id,
+        ScheduleSlot.doctor_membership_id == doctor_membership_id,
+        ScheduleSlot.starts_at < ends_at,
+        ScheduleSlot.ends_at > starts_at,
+        ScheduleSlot.status.notin_(["canceled"]),
+    )
+    if exclude_slot_id is not None:
+        stmt = stmt.where(ScheduleSlot.id != exclude_slot_id)
+    if db.scalar(stmt) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Schedule slot overlaps existing doctor's slot",
+        )
+
+
 @router.get("/clinics/{clinic_id}/appointments", response_model=list[AppointmentRead])
 def list_appointments(
     clinic_id: int, db: DbSession, current_account: CurrentAccount
@@ -207,6 +248,147 @@ def list_appointments(
         .order_by(Appointment.starts_at.desc())
     )
     return list(db.scalars(stmt).all())
+
+
+@router.get(
+    "/clinics/{clinic_id}/schedule/slots",
+    response_model=list[DoctorScheduleSlotRead],
+)
+def list_doctor_schedule_slots(
+    clinic_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+    starts_at: datetime | None = None,
+    ends_at: datetime | None = None,
+) -> list[ScheduleSlot]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.appointment_manage, clinic_id)
+        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing schedule access",
+        )
+    stmt = select(ScheduleSlot).where(ScheduleSlot.clinic_id == clinic_id)
+    if starts_at is not None:
+        stmt = stmt.where(ScheduleSlot.ends_at >= starts_at)
+    if ends_at is not None:
+        stmt = stmt.where(ScheduleSlot.starts_at <= ends_at)
+    stmt = stmt.order_by(ScheduleSlot.starts_at.asc())
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/schedule/slots",
+    response_model=DoctorScheduleSlotRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_doctor_schedule_slot(
+    clinic_id: int,
+    payload: DoctorScheduleSlotCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ScheduleSlot:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing schedule rights",
+        )
+    _ensure_doctor_membership(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=payload.doctor_membership_id,
+    )
+    _ensure_slot_window_is_free(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=payload.doctor_membership_id,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+    )
+    item = ScheduleSlot(
+        clinic_id=clinic_id,
+        doctor_membership_id=payload.doctor_membership_id,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+        status=payload.status,
+        note=payload.note,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="schedule_slot.create",
+        entity_type="schedule_slot",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch(
+    "/clinics/{clinic_id}/schedule/slots/{slot_id}",
+    response_model=DoctorScheduleSlotRead,
+)
+def update_doctor_schedule_slot(
+    clinic_id: int,
+    slot_id: int,
+    payload: DoctorScheduleSlotUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ScheduleSlot:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing schedule rights",
+        )
+    item = db.get(ScheduleSlot, slot_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
+    starts_at = payload.starts_at or item.starts_at
+    ends_at = payload.ends_at or item.ends_at
+    if ends_at <= starts_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ends_at must be greater than starts_at",
+        )
+    _ensure_slot_window_is_free(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=item.doctor_membership_id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        exclude_slot_id=item.id,
+    )
+    item.starts_at = starts_at
+    item.ends_at = ends_at
+    if payload.status is not None:
+        item.status = payload.status
+    if payload.note is not None:
+        item.note = payload.note
+    db.add(item)
+    audit(
+        db,
+        action="schedule_slot.update",
+        entity_type="schedule_slot",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 @router.post(

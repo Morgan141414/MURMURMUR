@@ -21,6 +21,7 @@ from saphena.modules.enums import (
     ClinicApplicationStatus,
     ClinicStatus,
     LeadStatus,
+    ScheduleSlotStatus,
     SupportTicketStatus,
 )
 from saphena.modules.permissions import RoleCode
@@ -175,6 +176,22 @@ class Appointment(Base, TimestampMixin):
         Enum(AppointmentStatus), default=AppointmentStatus.created
     )
     reason: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+class ScheduleSlot(Base, TimestampMixin):
+    __tablename__ = "schedule_slots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    doctor_membership_id: Mapped[int] = mapped_column(
+        ForeignKey("clinic_memberships.id"), index=True
+    )
+    starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    status: Mapped[ScheduleSlotStatus] = mapped_column(
+        Enum(ScheduleSlotStatus), default=ScheduleSlotStatus.available
+    )
+    note: Mapped[str | None] = mapped_column(Text, default=None)
 
 
 class MedicalRecordEntry(Base, TimestampMixin):

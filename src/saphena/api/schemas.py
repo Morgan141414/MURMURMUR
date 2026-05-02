@@ -7,6 +7,7 @@ from saphena.modules.enums import (
     ClinicApplicationStatus,
     ClinicStatus,
     LeadStatus,
+    ScheduleSlotStatus,
     SupportTicketStatus,
 )
 from saphena.modules.permissions import RoleCode
@@ -259,6 +260,49 @@ class ScheduleSlotRead(BaseModel):
     ends_at: datetime
     status: AppointmentStatus
     reason: str | None = None
+
+
+class DoctorScheduleSlotCreate(BaseModel):
+    doctor_membership_id: int
+    starts_at: datetime
+    ends_at: datetime
+    status: ScheduleSlotStatus = ScheduleSlotStatus.available
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_time_window(self) -> "DoctorScheduleSlotCreate":
+        if self.ends_at <= self.starts_at:
+            raise ValueError("ends_at must be greater than starts_at")
+        return self
+
+
+class DoctorScheduleSlotUpdate(BaseModel):
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    status: ScheduleSlotStatus | None = None
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_time_window(self) -> "DoctorScheduleSlotUpdate":
+        if (
+            self.starts_at is not None
+            and self.ends_at is not None
+            and self.ends_at <= self.starts_at
+        ):
+            raise ValueError("ends_at must be greater than starts_at")
+        return self
+
+
+class DoctorScheduleSlotRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    doctor_membership_id: int
+    starts_at: datetime
+    ends_at: datetime
+    status: ScheduleSlotStatus
+    note: str | None = None
 
 
 class MedicalRecordEntryCreate(BaseModel):
