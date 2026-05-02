@@ -30,8 +30,10 @@ def create_app() -> FastAPI:
     app.include_router(operations.router, prefix="/api/v1")
     app.include_router(bootstrap.router, prefix="/api/v1")
 
+    assets_dir = WEB_DIR / "assets"
     if WEB_DIR.exists():
-        app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
         @app.get("/", include_in_schema=False)
         def index() -> FileResponse:
