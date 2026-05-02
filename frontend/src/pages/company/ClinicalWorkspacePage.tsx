@@ -54,6 +54,8 @@ export default function ClinicalWorkspacePage() {
   const [employees, setEmployees] = useState<ClinicMembership[]>([])
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
+  const [patientSearch, setPatientSearch] = useState('')
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null)
 
   const [patientIin, setPatientIin] = useState('')
   const [patientFirstName, setPatientFirstName] = useState('')
@@ -107,6 +109,16 @@ export default function ClinicalWorkspacePage() {
   useEffect(() => {
     void refreshClinicalData()
   }, [clinicId])
+
+  useEffect(() => {
+    if (patients.length === 0) {
+      setSelectedPatientId(null)
+      return
+    }
+    if (!selectedPatientId || !patients.some((patient) => patient.id === selectedPatientId)) {
+      setSelectedPatientId(patients[0].id)
+    }
+  }, [patients, selectedPatientId])
 
   async function handleCreatePatient() {
     if (!clinicId) return
@@ -189,6 +201,7 @@ export default function ClinicalWorkspacePage() {
     setRecordPatientId(String(appointment.patient_profile_id))
     setRecordAppointmentId(String(appointment.id))
     setAppointmentPatientId(String(appointment.patient_profile_id))
+    setSelectedPatientId(appointment.patient_profile_id)
     setAppointmentDate(toDateTimeLocalValue(new Date(appointment.starts_at)))
     if (appointment.doctor_membership_id) {
       setAppointmentDoctorMembershipId(String(appointment.doctor_membership_id))
@@ -220,6 +233,23 @@ export default function ClinicalWorkspacePage() {
     } catch {
       toast.error('Не удалось создать слот. Возможно, время пересекается с другим слотом врача.')
     }
+  }
+
+  function handleSelectPatient(patient: Patient) {
+    setSelectedPatientId(patient.id)
+    setAppointmentPatientId(String(patient.id))
+    setRecordPatientId(String(patient.id))
+    toast.info('Пациент выбран для записи и медкарты')
+  }
+
+  function handlePlanAppointmentForPatient(patient: Patient) {
+    setSelectedPatientId(patient.id)
+    setAppointmentPatientId(String(patient.id))
+    setAppointmentReason('Плановый приём')
+    const nextHour = new Date()
+    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0)
+    setAppointmentDate(toDateTimeLocalValue(nextHour))
+    toast.success('Пациент перенесён в форму записи')
   }
 
   async function handleCreateMedicalRecord() {
@@ -271,6 +301,31 @@ export default function ClinicalWorkspacePage() {
   const todaySlots = scheduleSlots.filter((slot) =>
     new Date(slot.starts_at).toDateString() === new Date().toDateString(),
   ).length
+  const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? null
+  const filteredPatients = patients.filter((patient) => {
+    const query = patientSearch.trim().toLowerCase()
+    if (!query) return true
+    const fullName = `${patient.person.last_name} ${patient.person.first_name} ${patient.person.middle_name ?? ''}`.toLowerCase()
+    return (
+      fullName.includes(query)
+      || patient.person.iin.includes(query)
+      || (patient.person.phone ?? '').toLowerCase().includes(query)
+    )
+  })
+  const selectedPatientAppointments = selectedPatient
+    ? appointments
+      .filter((appointment) => appointment.patient_profile_id === selectedPatient.id)
+      .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
+    : []
+  const selectedPatientRecords = selectedPatient
+    ? medicalRecords
+      .filter((record) => record.patient_profile_id === selectedPatient.id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    : []
+  const selectedNextAppointment = selectedPatientAppointments.find((appointment) =>
+    !['canceled', 'completed', 'no_show'].includes(appointment.status)
+    && new Date(appointment.starts_at).getTime() >= Date.now(),
+  )
 
   return (
     <div className="space-y-6">
@@ -308,6 +363,180 @@ export default function ClinicalWorkspacePage() {
           <CalendarClock className="h-6 w-6 text-indigo-700" />
           <p className="mt-4 text-sm text-slate-500">Слоты расписания</p>
           <p className="text-3xl font-bold text-slate-950">{scheduleSlots.length}</p>
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-[28px] border border-cyan-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-950">Реестр пациентов</h3>
+              <p className="text-sm text-slate-500">Быстрый выбор пациента для приёма, медкарты и расписания</p>
+            </div>
+            <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700">
+              {filteredPatients.length} / {patients.length}
+            </span>
+          </div>
+          <input
+            value={patientSearch}
+            onChange={(event) => setPatientSearch(event.target.value)}
+            placeholder="Поиск по ФИО, ИИН или телефону"
+            className={inputClass}
+          />
+          <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            {filteredPatients.slice(0, 20).map((patient) => {
+              const isActive = patient.id === selectedPatientId
+              const patientAppointments = appointments.filter((item) => item.patient_profile_id === patient.id)
+              const patientRecords = medicalRecords.filter((item) => item.patient_profile_id === patient.id)
+              return (
+                <button
+                  key={patient.id}
+                  type="button"
+                  onClick={() => handleSelectPatient(patient)}
+                  className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                    isActive
+                      ? 'border-cyan-300 bg-cyan-50 shadow-sm'
+                      : 'border-slate-100 bg-slate-50 hover:border-cyan-200 hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-950">
+                        {patient.person.last_name} {patient.person.first_name}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">ИИН {patient.person.iin}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                      #{patient.id}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">
+                      Записи: {patientAppointments.length}
+                    </span>
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
+                      Медкарта: {patientRecords.length}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+            {filteredPatients.length === 0 ? (
+              <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                Пациент не найден. Можно создать нового пациента через форму ниже.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-emerald-100 bg-gradient-to-br from-white via-emerald-50 to-cyan-50 p-5 shadow-sm">
+          {selectedPatient ? (
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-emerald-600 text-white shadow-lg shadow-emerald-200">
+                    <HeartPulse className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-700">Карточка пациента</p>
+                    <h3 className="mt-1 text-2xl font-black text-slate-950">
+                      {selectedPatient.person.last_name} {selectedPatient.person.first_name}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      ИИН {selectedPatient.person.iin}
+                      {selectedPatient.person.phone ? ` · ${selectedPatient.person.phone}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => handlePlanAppointmentForPatient(selectedPatient)}>
+                    Запланировать приём
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setRecordPatientId(String(selectedPatient.id))
+                      toast.info('Пациент выбран для новой записи в медкарте')
+                    }}
+                  >
+                    Добавить медкарту
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-3xl border border-white/70 bg-white/85 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Все записи</p>
+                  <p className="mt-2 text-3xl font-black text-slate-950">{selectedPatientAppointments.length}</p>
+                </div>
+                <div className="rounded-3xl border border-white/70 bg-white/85 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Медкарта</p>
+                  <p className="mt-2 text-3xl font-black text-slate-950">{selectedPatientRecords.length}</p>
+                </div>
+                <div className="rounded-3xl border border-white/70 bg-white/85 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Ближайший приём</p>
+                  <p className="mt-2 text-sm font-bold text-slate-950">
+                    {selectedNextAppointment
+                      ? new Date(selectedNextAppointment.starts_at).toLocaleString('ru-RU')
+                      : 'Не назначен'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-3xl border border-white/70 bg-white/90 p-4">
+                  <h4 className="font-bold text-slate-950">История приёмов</h4>
+                  <div className="mt-3 space-y-2">
+                    {selectedPatientAppointments.slice(0, 5).map((appointment) => (
+                      <button
+                        key={appointment.id}
+                        type="button"
+                        onClick={() => handleAppointmentSelect(appointment)}
+                        className="w-full rounded-2xl bg-slate-50 px-3 py-3 text-left text-sm transition hover:bg-blue-50"
+                      >
+                        <span className="font-semibold text-slate-900">
+                          {new Date(appointment.starts_at).toLocaleString('ru-RU')}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {appointment.reason || 'Без причины'} · {appointment.status}
+                        </span>
+                      </button>
+                    ))}
+                    {selectedPatientAppointments.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-3 py-4 text-sm text-slate-500">Записей пока нет.</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/70 bg-white/90 p-4">
+                  <h4 className="font-bold text-slate-950">Медицинские записи</h4>
+                  <div className="mt-3 space-y-2">
+                    {selectedPatientRecords.slice(0, 5).map((record) => (
+                      <div key={record.id} className="rounded-2xl bg-slate-50 px-3 py-3 text-sm">
+                        <p className="font-semibold text-slate-900">{record.diagnosis || 'Без диагноза'}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {new Date(record.created_at).toLocaleString('ru-RU')}
+                        </p>
+                        {record.conclusion ? (
+                          <p className="mt-2 text-xs leading-relaxed text-slate-600">{record.conclusion}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                    {selectedPatientRecords.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-3 py-4 text-sm text-slate-500">Медкарта пока пустая.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-3xl border border-dashed border-cyan-200 bg-white/70 p-8 text-center">
+              <HeartPulse className="h-10 w-10 text-cyan-600" />
+              <h3 className="mt-4 text-xl font-black text-slate-950">Выберите пациента</h3>
+              <p className="mt-2 max-w-md text-sm text-slate-500">
+                После выбора здесь появятся приёмы, медкарта, контакты и быстрые действия.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
