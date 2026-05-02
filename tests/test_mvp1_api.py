@@ -316,6 +316,16 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     assert appointment_response.status_code == 201, appointment_response.text
     appointment_id = appointment_response.json()["id"]
 
+    booked_slots_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/schedule/slots",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert booked_slots_response.status_code == 200, booked_slots_response.text
+    booked_slot = next(
+        slot for slot in booked_slots_response.json() if slot["id"] == schedule_slot_id
+    )
+    assert booked_slot["status"] == "booked"
+
     medical_record_response = client.post(
         f"/api/v1/clinics/{clinic_id}/medical-records",
         headers={"Authorization": f"Bearer {founder_token}"},

@@ -21,6 +21,7 @@ import {
 } from '@/api/clinical'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { ClinicCalendar } from './components/ClinicCalendar'
 
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -32,6 +33,11 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
 }
 
 const inputClass = 'mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100'
+
+function toDateTimeLocalValue(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
 
 export default function ClinicalWorkspacePage() {
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
@@ -53,7 +59,9 @@ export default function ClinicalWorkspacePage() {
   const [patientLastName, setPatientLastName] = useState('')
 
   const [appointmentPatientId, setAppointmentPatientId] = useState('')
+  const [appointmentDoctorMembershipId, setAppointmentDoctorMembershipId] = useState('')
   const [appointmentDate, setAppointmentDate] = useState('')
+  const [appointmentDuration, setAppointmentDuration] = useState('30')
   const [appointmentReason, setAppointmentReason] = useState('')
 
   const [slotDoctorMembershipId, setSlotDoctorMembershipId] = useState('')
@@ -130,10 +138,15 @@ export default function ClinicalWorkspacePage() {
       return
     }
     const startsAt = new Date(appointmentDate)
-    const endsAt = new Date(startsAt.getTime() + 30 * 60 * 1000)
+    const durationMinutes = Number(appointmentDuration) || 30
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000)
+    const doctorMembershipId = appointmentDoctorMembershipId
+      ? Number(appointmentDoctorMembershipId)
+      : null
     try {
       await createAppointment(clinicId, {
         patient_profile_id: patientId,
+        doctor_membership_id: doctorMembershipId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         reason: appointmentReason || undefined,
@@ -143,8 +156,43 @@ export default function ClinicalWorkspacePage() {
       setAppointmentReason('')
       await refreshClinicalData()
     } catch {
-      toast.error('Не удалось создать запись')
+      toast.error('Не удалось создать запись. Проверьте врача, слот и пересечения в расписании.')
     }
+  }
+
+  function handleCalendarWindowSelect(startsAt: Date, doctorMembershipId?: number | null) {
+    setAppointmentDate(toDateTimeLocalValue(startsAt))
+    if (doctorMembershipId) {
+      setAppointmentDoctorMembershipId(String(doctorMembershipId))
+      setSlotDoctorMembershipId(String(doctorMembershipId))
+    }
+    setSlotDate(toDateTimeLocalValue(startsAt))
+    toast.info('Время перенесено в формы записи и рабочего слота')
+  }
+
+  function handleScheduleSlotSelect(slot: ScheduleSlot) {
+    setAppointmentDate(toDateTimeLocalValue(new Date(slot.starts_at)))
+    setAppointmentDoctorMembershipId(String(slot.doctor_membership_id))
+    setSlotDoctorMembershipId(String(slot.doctor_membership_id))
+    setSlotDate(toDateTimeLocalValue(new Date(slot.starts_at)))
+    const durationMinutes = Math.max(
+      15,
+      Math.round((new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()) / 60000),
+    )
+    setAppointmentDuration(String(durationMinutes))
+    setSlotDuration(String(durationMinutes))
+    toast.success('Слот выбран для новой записи')
+  }
+
+  function handleAppointmentSelect(appointment: Appointment) {
+    setRecordPatientId(String(appointment.patient_profile_id))
+    setRecordAppointmentId(String(appointment.id))
+    setAppointmentPatientId(String(appointment.patient_profile_id))
+    setAppointmentDate(toDateTimeLocalValue(new Date(appointment.starts_at)))
+    if (appointment.doctor_membership_id) {
+      setAppointmentDoctorMembershipId(String(appointment.doctor_membership_id))
+    }
+    toast.info('Приём выбран, можно добавить запись в медкарту')
   }
 
   async function handleCreateScheduleSlot() {
@@ -282,12 +330,36 @@ export default function ClinicalWorkspacePage() {
                 {patients.map((patient) => <option key={patient.id} value={String(patient.id)}>{patient.person.last_name} {patient.person.first_name}</option>)}
               </select>
             </FieldLabel>
+            <FieldLabel label="Врач">
+              <select value={appointmentDoctorMembershipId} onChange={(event) => setAppointmentDoctorMembershipId(event.target.value)} className={inputClass}>
+                <option value="">Без врача</option>
+                {availableDoctors.map((employee) => <option key={employee.id} value={String(employee.id)}>#{employee.id} {employee.position || employee.role_code}</option>)}
+              </select>
+            </FieldLabel>
             <FieldLabel label="Дата и время"><input type="datetime-local" value={appointmentDate} onChange={(event) => setAppointmentDate(event.target.value)} className={inputClass} /></FieldLabel>
+            <FieldLabel label="Длительность">
+              <select value={appointmentDuration} onChange={(event) => setAppointmentDuration(event.target.value)} className={inputClass}>
+                <option value="15">15 минут</option>
+                <option value="30">30 минут</option>
+                <option value="45">45 минут</option>
+                <option value="60">60 минут</option>
+              </select>
+            </FieldLabel>
             <FieldLabel label="Причина"><input value={appointmentReason} onChange={(event) => setAppointmentReason(event.target.value)} placeholder="Первичный приём" className={inputClass} /></FieldLabel>
           </div>
           <Button className="mt-4" onClick={() => void handleCreateAppointment()} disabled={!clinicId}>Создать запись</Button>
         </section>
       </div>
+
+      <ClinicCalendar
+        appointments={appointments}
+        employees={employees}
+        patients={patients}
+        scheduleSlots={scheduleSlots}
+        onSelectWindow={handleCalendarWindowSelect}
+        onSelectSlot={handleScheduleSlotSelect}
+        onSelectAppointment={handleAppointmentSelect}
+      />
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex items-center gap-3">

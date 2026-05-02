@@ -31,7 +31,7 @@ from saphena.api.schemas import (
     SupportTicketUpdate,
 )
 from saphena.core.security import hash_password
-from saphena.modules.enums import AppointmentStatus
+from saphena.modules.enums import AppointmentStatus, ScheduleSlotStatus
 from saphena.modules.models import (
     Account,
     Appointment,
@@ -444,6 +444,19 @@ def create_appointment(
     )
     db.add(item)
     db.flush()
+    if payload.doctor_membership_id is not None:
+        matched_slot = db.scalar(
+            select(ScheduleSlot).where(
+                ScheduleSlot.clinic_id == clinic_id,
+                ScheduleSlot.doctor_membership_id == payload.doctor_membership_id,
+                ScheduleSlot.starts_at <= payload.starts_at,
+                ScheduleSlot.ends_at >= payload.ends_at,
+                ScheduleSlot.status == ScheduleSlotStatus.available,
+            )
+        )
+        if matched_slot is not None:
+            matched_slot.status = ScheduleSlotStatus.booked
+            db.add(matched_slot)
     create_notification(
         db,
         account_id=current_account.id,
