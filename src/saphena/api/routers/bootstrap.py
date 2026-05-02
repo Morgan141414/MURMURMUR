@@ -55,6 +55,8 @@ def _ensure_person_account(
         account = Account(person_id=person.id, password_hash=hash_password(DEFAULT_PASSWORD))
         db.add(account)
         db.flush()
+    else:
+        account.password_hash = hash_password(DEFAULT_PASSWORD)
     account.is_superuser = is_superuser
     db.add(account)
     patient = db.scalar(select(PatientProfile).where(PatientProfile.person_id == person.id))
