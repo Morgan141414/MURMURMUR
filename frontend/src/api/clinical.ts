@@ -34,6 +34,13 @@ export interface AppointmentCreatePayload {
   status?: string
 }
 
+export interface AppointmentUpdatePayload {
+  starts_at?: string
+  ends_at?: string
+  status?: string
+  reason?: string | null
+}
+
 export interface Appointment {
   id: number
   clinic_id: number
@@ -112,6 +119,14 @@ export function attachPatientToClinic(clinicId: number, patientProfileId: number
 
 export function createAppointment(clinicId: number, payload: AppointmentCreatePayload) {
   return api.post<Appointment>(`/clinics/${clinicId}/appointments`, payload)
+}
+
+export function updateAppointment(
+  clinicId: number,
+  appointmentId: number,
+  payload: AppointmentUpdatePayload,
+) {
+  return api.patch<Appointment>(`/clinics/${clinicId}/appointments/${appointmentId}`, payload)
 }
 
 export function listAppointments(clinicId: number) {

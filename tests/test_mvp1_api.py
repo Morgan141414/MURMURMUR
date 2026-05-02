@@ -407,6 +407,24 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert overlap_response.status_code == 409, overlap_response.text
 
+    cancel_response = client.patch(
+        f"/api/v1/clinics/{clinic_id}/appointments/{appointment_id}",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={"status": "canceled"},
+    )
+    assert cancel_response.status_code == 200, cancel_response.text
+    assert cancel_response.json()["status"] == "canceled"
+
+    released_slots_response = client.get(
+        f"/api/v1/clinics/{clinic_id}/schedule/slots",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert released_slots_response.status_code == 200, released_slots_response.text
+    released_slot = next(
+        slot for slot in released_slots_response.json() if slot["id"] == schedule_slot_id
+    )
+    assert released_slot["status"] == "available"
+
     schedule_response = client.get(
         f"/api/v1/clinics/{clinic_id}/schedule",
         headers={"Authorization": f"Bearer {founder_token}"},

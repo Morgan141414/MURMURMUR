@@ -229,6 +229,68 @@ def _ensure_slot_window_is_free(
         )
 
 
+def _find_covering_schedule_slot(
+    db: DbSession,
+    *,
+    clinic_id: int,
+    doctor_membership_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    status: ScheduleSlotStatus,
+) -> ScheduleSlot | None:
+    return db.scalar(
+        select(ScheduleSlot).where(
+            ScheduleSlot.clinic_id == clinic_id,
+            ScheduleSlot.doctor_membership_id == doctor_membership_id,
+            ScheduleSlot.starts_at <= starts_at,
+            ScheduleSlot.ends_at >= ends_at,
+            ScheduleSlot.status == status,
+        )
+    )
+
+
+def _sync_schedule_slot_for_appointment(
+    db: DbSession,
+    *,
+    clinic_id: int,
+    doctor_membership_id: int | None,
+    starts_at: datetime,
+    ends_at: datetime,
+    appointment_status: AppointmentStatus,
+) -> None:
+    if doctor_membership_id is None:
+        return
+    if appointment_status in {
+        AppointmentStatus.canceled,
+        AppointmentStatus.no_show,
+        AppointmentStatus.rescheduled,
+    }:
+        booked_slot = _find_covering_schedule_slot(
+            db,
+            clinic_id=clinic_id,
+            doctor_membership_id=doctor_membership_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            status=ScheduleSlotStatus.booked,
+        )
+        if booked_slot is not None:
+            booked_slot.status = ScheduleSlotStatus.available
+            db.add(booked_slot)
+        return
+
+    available_slot = _find_covering_schedule_slot(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=doctor_membership_id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        status=ScheduleSlotStatus.available,
+    )
+    if available_slot is not None:
+        available_slot.status = ScheduleSlotStatus.booked
+        db.add(available_slot)
+
+
 @router.get("/clinics/{clinic_id}/appointments", response_model=list[AppointmentRead])
 def list_appointments(
     clinic_id: int, db: DbSession, current_account: CurrentAccount
@@ -444,19 +506,14 @@ def create_appointment(
     )
     db.add(item)
     db.flush()
-    if payload.doctor_membership_id is not None:
-        matched_slot = db.scalar(
-            select(ScheduleSlot).where(
-                ScheduleSlot.clinic_id == clinic_id,
-                ScheduleSlot.doctor_membership_id == payload.doctor_membership_id,
-                ScheduleSlot.starts_at <= payload.starts_at,
-                ScheduleSlot.ends_at >= payload.ends_at,
-                ScheduleSlot.status == ScheduleSlotStatus.available,
-            )
-        )
-        if matched_slot is not None:
-            matched_slot.status = ScheduleSlotStatus.booked
-            db.add(matched_slot)
+    _sync_schedule_slot_for_appointment(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=payload.doctor_membership_id,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+        appointment_status=item.status,
+    )
     create_notification(
         db,
         account_id=current_account.id,
@@ -502,14 +559,22 @@ def update_appointment(
     if item is None or item.clinic_id != clinic_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
 
+    previous_starts_at = item.starts_at
+    previous_ends_at = item.ends_at
+    previous_status = item.status
     starts_at = payload.starts_at or item.starts_at
     ends_at = payload.ends_at or item.ends_at
+    next_status = payload.status or item.status
     if ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ends_at must be greater than starts_at",
         )
-    if item.doctor_membership_id is not None:
+    if item.doctor_membership_id is not None and next_status not in {
+        AppointmentStatus.canceled,
+        AppointmentStatus.no_show,
+        AppointmentStatus.rescheduled,
+    }:
         overlap_stmt = select(Appointment).where(
             Appointment.id != item.id,
             Appointment.clinic_id == clinic_id,
@@ -524,13 +589,55 @@ def update_appointment(
                 detail="Appointment overlaps existing doctor's slot",
             )
 
+    if (
+        item.doctor_membership_id is not None
+        and previous_status
+        not in {
+            AppointmentStatus.canceled,
+            AppointmentStatus.no_show,
+            AppointmentStatus.rescheduled,
+        }
+        and (
+            previous_starts_at != starts_at
+            or previous_ends_at != ends_at
+            or next_status
+            in {
+                AppointmentStatus.canceled,
+                AppointmentStatus.no_show,
+                AppointmentStatus.rescheduled,
+            }
+        )
+    ):
+        _sync_schedule_slot_for_appointment(
+            db,
+            clinic_id=clinic_id,
+            doctor_membership_id=item.doctor_membership_id,
+            starts_at=previous_starts_at,
+            ends_at=previous_ends_at,
+            appointment_status=AppointmentStatus.canceled,
+        )
+
     item.starts_at = starts_at
     item.ends_at = ends_at
-    if payload.status is not None:
-        item.status = payload.status
+    item.status = next_status
     if payload.reason is not None:
         item.reason = payload.reason
     db.add(item)
+    _sync_schedule_slot_for_appointment(
+        db,
+        clinic_id=clinic_id,
+        doctor_membership_id=item.doctor_membership_id,
+        starts_at=item.starts_at,
+        ends_at=item.ends_at,
+        appointment_status=item.status,
+    )
+    if payload.status is not None and payload.status != previous_status:
+        create_notification(
+            db,
+            account_id=current_account.id,
+            title="Appointment status updated",
+            body=f"Appointment #{item.id} status changed to {item.status.value}",
+        )
     audit(
         db,
         action="appointment.update",

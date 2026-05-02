@@ -13,6 +13,7 @@ import {
   listClinicPatients,
   listMedicalRecords,
   listScheduleSlots,
+  updateAppointment,
   type Appointment,
   type ClinicMembership,
   type MedicalRecordEntry,
@@ -245,6 +246,22 @@ export default function ClinicalWorkspacePage() {
     }
   }
 
+  async function handleUpdateAppointmentStatus(appointment: Appointment, status: string) {
+    if (!clinicId) return
+    try {
+      await updateAppointment(clinicId, appointment.id, { status })
+      const statusText: Record<string, string> = {
+        confirmed: 'Запись подтверждена',
+        completed: 'Приём завершён',
+        canceled: 'Запись отменена, слот снова доступен',
+      }
+      toast.success(statusText[status] || 'Статус записи обновлён')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось обновить статус записи')
+    }
+  }
+
   const todayAppointments = appointments.filter((appointment) =>
     new Date(appointment.starts_at).toDateString() === new Date().toDateString(),
   ).length
@@ -432,7 +449,49 @@ export default function ClinicalWorkspacePage() {
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-950"><CalendarCheck2 className="h-5 w-5 text-blue-700" /> Записи</h4>
           <div className="space-y-2 text-sm">
-            {appointments.slice(0, 10).map((appointment) => <p key={appointment.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-slate-700">#{appointment.id} {new Date(appointment.starts_at).toLocaleString('ru-RU')}</p>)}
+            {appointments.slice(0, 10).map((appointment) => (
+              <div key={appointment.id} className="rounded-2xl bg-slate-50 px-3 py-3 text-slate-700">
+                <button
+                  type="button"
+                  onClick={() => handleAppointmentSelect(appointment)}
+                  className="block w-full text-left font-semibold text-slate-900"
+                >
+                  #{appointment.id} {new Date(appointment.starts_at).toLocaleString('ru-RU')}
+                </button>
+                <p className="mt-1 text-xs text-slate-500">
+                  {appointment.reason || 'Без причины'} · {appointment.status}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {appointment.status === 'created' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleUpdateAppointmentStatus(appointment, 'confirmed')}
+                    >
+                      Подтвердить
+                    </Button>
+                  ) : null}
+                  {['created', 'confirmed', 'arrived', 'started'].includes(appointment.status) ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleUpdateAppointmentStatus(appointment, 'completed')}
+                    >
+                      Завершить
+                    </Button>
+                  ) : null}
+                  {!['canceled', 'completed', 'no_show'].includes(appointment.status) ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleUpdateAppointmentStatus(appointment, 'canceled')}
+                    >
+                      Отменить
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
             {appointments.length === 0 ? <p className="text-slate-500">Пока нет записей.</p> : null}
           </div>
         </div>
