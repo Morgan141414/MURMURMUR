@@ -1,85 +1,42 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff, ArrowRight, Building2, Sparkles, Check, Shield, Zap, Users, ChevronRight } from 'lucide-react'
-import { register, login } from '@/api/auth'
-import { getMe } from '@/api/profile'
-import { useAuthStore } from '@/stores/authStore'
-import { usePageTitle } from '@/hooks/usePageTitle'
-import { OAuthButtons } from '@/components/OAuthButtons'
-import { cn } from '@/lib/utils'
 import axios from 'axios'
+import { ArrowRight, CheckCircle2, Eye, EyeOff, FileText, HeartPulse, ShieldCheck, Stethoscope, UserRoundPlus } from 'lucide-react'
 
-/* ── Logo Mark ── */
-function LogoMark() {
-  return (
-    <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
-      <path
-        d="M1.04356 6.35771L13.6437 0.666504L13.2006 3.16498L3.01927 7.80327L13.2006 12.4416L13.6437 14.94L1.04356 9.24883L0.333374 7.80327L1.04356 6.35771ZM14.3994 3.16498L14.8425 0.666504L27.4426 6.35771L28.1528 7.80327L27.4426 9.24883L14.8425 14.94L14.3994 12.4416L24.5807 7.80327L14.3994 3.16498Z"
-        fill="currentColor"
-      />
-    </svg>
-  )
+import { getMe } from '@/api/profile'
+import { login, register } from '@/api/auth'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import { useAuthStore } from '@/stores/authStore'
+
+function splitName(fullName: string) {
+  const chunks = fullName.trim().split(/\s+/).filter(Boolean)
+  return {
+    firstName: chunks[0] ?? '',
+    lastName: chunks.slice(1).join(' ') || chunks[0] || '',
+  }
 }
 
-/* ── Password Strength ── */
-function PasswordStrength({ password }: { password: string }) {
-  const checks = useMemo(() => [
-    { label: '8+ characters', met: password.length >= 8 },
-    { label: 'Uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Number', met: /\d/.test(password) },
-    { label: 'Special character', met: /[^A-Za-z0-9]/.test(password) },
-  ], [password])
-
-  const score = checks.filter((c) => c.met).length
-  if (!password) return null
-
-  const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-emerald-500']
-  const labels = ['Weak', 'Fair', 'Good', 'Strong']
-
+function SaphenaLogo() {
   return (
-    <div className="mt-2.5 space-y-2">
-      {/* Bar */}
-      <div className="flex gap-1">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={cn(
-              'h-1 flex-1 rounded-full transition-all duration-300',
-              i < score ? colors[score - 1] : 'bg-white/8',
-            )}
-          />
-        ))}
+    <div className="flex items-center gap-3">
+      <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#1687d9] text-white shadow-lg shadow-sky-200/70">
+        <Stethoscope className="h-6 w-6" />
       </div>
-      <div className="flex items-center justify-between">
-        <span className={cn(
-          'text-[10px] font-medium',
-          score <= 1 ? 'text-red-400' : score === 2 ? 'text-orange-400' : score === 3 ? 'text-amber-400' : 'text-emerald-400',
-        )}>
-          {labels[score - 1] || ''}
-        </span>
-        <div className="flex gap-3">
-          {checks.map((c) => (
-            <span key={c.label} className={cn('text-[10px]', c.met ? 'text-emerald-400/60' : 'text-white/15')}>
-              {c.met ? '✓' : '·'} {c.label}
-            </span>
-          ))}
-        </div>
+      <div>
+        <p className="text-xl font-bold tracking-tight text-slate-900">Saphena M.I.S.</p>
+        <p className="text-xs font-medium uppercase tracking-[0.24em] text-sky-600">Medical platform</p>
       </div>
     </div>
   )
 }
 
-/* ── Setup Steps Preview ── */
-const SETUP_STEPS = [
-  { num: '1', label: 'Create account', desc: 'Name, email & password', active: true },
-  { num: '2', label: 'Set up company', desc: 'Details, industry & plan', active: false },
-  { num: '3', label: 'Invite team', desc: 'Add your first colleagues', active: false },
-  { num: '4', label: 'Go live', desc: 'Start managing operations', active: false },
+const STEPS = [
+  'Создайте аккаунт сотрудника',
+  'Подайте заявку на клинику',
+  'После модерации начните прием пациентов',
 ]
 
 export default function RegisterPage() {
-  const { t } = useTranslation()
   usePageTitle()
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
@@ -89,272 +46,220 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [capsLock, setCapsLock] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  function validate(): boolean {
-    const e: Record<string, string> = {}
-    if (!fullName.trim()) e.fullName = t('auth.fieldRequired', 'Required')
-    else if (fullName.trim().length < 2) e.fullName = t('auth.nameTooShort', 'Min 2 chars')
-    if (!iin.trim()) e.iin = t('auth.fieldRequired', 'Required')
-    else if (!/^\d{12}$/.test(iin.replace(/\s+/g, ''))) e.iin = t('auth.invalidIin', 'Enter a valid IIN (12 digits)')
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t('auth.invalidEmail', 'Invalid email')
-    if (!password) e.password = t('auth.fieldRequired', 'Required')
-    else if (password.length < 8) e.password = t('auth.passwordTooShort', 'Min 8 chars')
-    setErrors(e)
-    return Object.keys(e).length === 0
+  const name = useMemo(() => splitName(fullName), [fullName])
+  const normalizedIin = iin.replace(/\s+/g, '')
+
+  function validate() {
+    const nextErrors: Record<string, string> = {}
+    if (name.firstName.length < 2) nextErrors.fullName = 'Укажите имя и фамилию'
+    if (!/^\d{12}$/.test(normalizedIin)) nextErrors.iin = 'ИИН должен содержать 12 цифр'
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Введите корректный email'
+    if (password.length < 8) nextErrors.password = 'Пароль должен быть не менее 8 символов'
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
-  function extractError(err: unknown, fallback: string): string {
-    if (!axios.isAxiosError(err)) return fallback
+  function extractError(err: unknown) {
+    if (!axios.isAxiosError(err)) return 'Не удалось зарегистрироваться'
     const detail = err.response?.data?.detail
-    if (Array.isArray(detail)) return detail.map((e: { msg?: string }) => (e.msg ?? '').replace(/^Value error,\s*/i, '')).filter(Boolean).join('; ') || fallback
+    if (Array.isArray(detail)) return detail.map((item: { msg?: string }) => item.msg ?? '').join('; ')
     if (typeof detail === 'string') return detail
-    if (err.response?.status === 429) return t('auth.tooManyAttempts')
-    return fallback
+    return 'Не удалось зарегистрироваться'
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setErrorMessage('')
     if (!validate()) return
     setLoading(true)
-    setErrorMessage('')
+
     try {
-      const normalizedIin = iin.replace(/\s+/g, '')
       await register(normalizedIin, password, fullName, email.trim() || undefined)
-    } catch (err) {
-      setErrorMessage(extractError(err, t('auth.registerError')))
-      setLoading(false)
-      return
-    }
-    try {
-      const { data: tokenData } = await login(iin.replace(/\s+/g, ''), password)
+      const { data: tokenData } = await login(normalizedIin, password)
       const token = tokenData.access_token
-      const refreshTkn = tokenData.refresh_token ?? null
+      const refreshToken = tokenData.refresh_token ?? null
       const storage = remember ? localStorage : sessionStorage
-      storage.setItem('auth-storage', JSON.stringify({ state: { token, refreshToken: refreshTkn }, version: 0 }))
+      storage.setItem('auth-storage', JSON.stringify({ state: { token, refreshToken }, version: 0 }))
       const { data: user } = await getMe()
-      setAuth(token, refreshTkn, user, remember ? 'local' : 'session')
+      setAuth(token, refreshToken, user, remember ? 'local' : 'session')
       navigate('/dashboard')
     } catch (err) {
-      setErrorMessage(extractError(err, t('auth.loginError')))
+      setErrorMessage(extractError(err))
     } finally {
       setLoading(false)
     }
   }
 
-  function clearError() { if (errorMessage) setErrorMessage('') }
+  function clearFieldError(field: string) {
+    setErrorMessage('')
+    setErrors((current) => {
+      const { [field]: _removed, ...rest } = current
+      return rest
+    })
+  }
 
   return (
-    <div className="auth-scene relative flex min-h-screen overflow-hidden">
-      {/* Background */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="auth-blob auth-blob-1" />
-        <div className="auth-blob auth-blob-2" />
-        <div className="auth-blob auth-blob-3" />
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-        }}
-      />
+    <main className="tetis-auth-page">
+      <section className="tetis-auth-hero tetis-auth-hero-register">
+        <div className="tetis-auth-orb tetis-auth-orb-a" />
+        <div className="tetis-auth-orb tetis-auth-orb-b" />
 
-      {/* ═══ Left Panel ═══ */}
-      <div className="relative hidden flex-col justify-between p-12 lg:flex lg:w-[44%]">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
-            <LogoMark />
-          </div>
-          <span className="text-[15px] font-semibold text-white tracking-tight">Bloom OS</span>
-        </div>
+        <div className="tetis-auth-left">
+          <SaphenaLogo />
 
-        <div className="animate-fade-in-up">
-          <h2 className="text-[2rem] font-bold text-white leading-tight max-w-sm">
-            Start building your{' '}
-            <span className="text-gradient-brand">digital workspace</span>
-          </h2>
-          <p className="mt-4 text-[14px] text-white/35 leading-relaxed max-w-sm">
-            {t('auth.trustedBy', 'Join 500+ companies already using Bloom OS to streamline their operations.')}
-          </p>
-
-          {/* Setup steps preview */}
-          <div className="mt-10 space-y-3 max-w-sm">
-            {SETUP_STEPS.map((step, i) => (
-              <div
-                key={step.num}
-                className={cn(
-                  'flex items-center gap-4 rounded-xl border p-4 transition-all',
-                  step.active
-                    ? 'border-primary/20 bg-primary/[0.03]'
-                    : 'border-white/[0.04] bg-white/[0.01]',
-                )}
-              >
-                <div className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-lg text-[12px] font-bold shrink-0',
-                  step.active
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-white/5 text-white/20',
-                )}>
-                  {step.num}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-[13px] font-medium', step.active ? 'text-white' : 'text-white/30')}>
-                    {step.label}
-                  </p>
-                  <p className="text-[11px] text-white/20">{step.desc}</p>
-                </div>
-                {step.active && <ChevronRight className="h-4 w-4 text-primary/50 shrink-0" />}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-[11px] text-white/15">&copy; {new Date().getFullYear()} Bloom OS</p>
-      </div>
-
-      {/* ═══ Right Panel ═══ */}
-      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-12">
-        <div className="auth-form-card w-full max-w-[420px] animate-fade-in-up" style={{ animationDelay: '80ms' }}>
-          {/* Mobile logo */}
-          <div className="mb-7 flex items-center gap-2.5 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <LogoMark />
+          <div className="tetis-auth-copy">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
+              <UserRoundPlus className="h-4 w-4" />
+              Быстрый старт MVP1
             </div>
-            <span className="text-[14px] font-semibold text-white">Bloom OS</span>
-          </div>
-
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                <Sparkles className="h-3 w-3" />
-                Free to start
-              </div>
+            <h1>Регистрация для клиники и медицинской команды</h1>
+            <p>
+              Создайте аккаунт, отправьте заявку на клинику и получите доступ к пациентам, расписанию, медкартам и документам.
+            </p>
+            <div className="tetis-benefits">
+              {STEPS.map((step, index) => (
+                <div key={step} className="tetis-benefit-row">
+                  <span className="tetis-step-index">{index + 1}</span>
+                  <span>{step}</span>
+                </div>
+              ))}
             </div>
-            <h1 className="text-[22px] font-bold text-white">{t('auth.welcomeNew', 'Create your account')}</h1>
-            <p className="mt-1.5 text-[13px] text-white/30">{t('auth.registerSubtitle', 'Set up your workspace in under 2 minutes')}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Full name */}
+          <div className="tetis-auth-stats">
             <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-white/40">{t('auth.fullName', 'Full Name')}</label>
+              <strong>ИИН</strong>
+              <span>единый вход</span>
+            </div>
+            <div>
+              <strong>Clinic</strong>
+              <span>заявка и модерация</span>
+            </div>
+            <div>
+              <strong>MIS</strong>
+              <span>медицинский контур</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="tetis-auth-card-wrap">
+          <form onSubmit={handleSubmit} className="tetis-auth-card tetis-register-card">
+            <div className="tetis-auth-card-head">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <div>
+                <h2>Создать аккаунт</h2>
+                <p>Заполните данные сотрудника</p>
+              </div>
+            </div>
+
+            {errorMessage && <div className="tetis-auth-alert tetis-auth-alert-danger">{errorMessage}</div>}
+
+            <label className="tetis-field">
+              <span>ФИО</span>
               <input
                 type="text"
-                placeholder={t('auth.namePlaceholder', 'John Doe')}
+                placeholder="Аманат Тест"
                 value={fullName}
-                onChange={(e) => { setFullName(e.target.value); clearError(); setErrors((p) => { const { fullName: _, ...r } = p; return r }) }}
-                className="auth-input"
-                style={errors.fullName ? { borderColor: 'rgba(239,68,68,0.4)' } : {}}
+                onChange={(e) => {
+                  setFullName(e.target.value)
+                  clearFieldError('fullName')
+                }}
+                aria-invalid={Boolean(errors.fullName)}
               />
-              {errors.fullName && <p className="mt-1 text-[11px] text-red-400">{errors.fullName}</p>}
-            </div>
+              {errors.fullName && <small>{errors.fullName}</small>}
+            </label>
 
-            {/* Email */}
-            <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-white/40">{t('auth.email', 'Email')}</label>
-              <input
-                type="email"
-                placeholder={t('auth.emailOptionalPlaceholder', 'you@company.com (optional)')}
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearError(); setErrors((p) => { const { email: _, ...r } = p; return r }) }}
-                className="auth-input"
-                style={errors.email ? { borderColor: 'rgba(239,68,68,0.4)' } : {}}
-              />
-              {errors.email && <p className="mt-1 text-[11px] text-red-400">{errors.email}</p>}
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-white/40">{t('auth.iin', 'IIN')}</label>
+            <label className="tetis-field">
+              <span>ИИН</span>
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder={t('auth.iinPlaceholder', '123456789012')}
+                placeholder="700101000017"
                 value={iin}
-                onChange={(e) => { setIin(e.target.value); clearError(); setErrors((p) => { const { iin: _, ...r } = p; return r }) }}
-                className="auth-input"
-                style={errors.iin ? { borderColor: 'rgba(239,68,68,0.4)' } : {}}
+                onChange={(e) => {
+                  setIin(e.target.value)
+                  clearFieldError('iin')
+                }}
+                aria-invalid={Boolean(errors.iin)}
               />
-              {errors.iin && <p className="mt-1 text-[11px] text-red-400">{errors.iin}</p>}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-white/40">{t('auth.password', 'Password')}</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder={t('auth.passwordMinLength', 'Min 8 characters')}
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); clearError(); setErrors((p) => { const { password: _, ...r } = p; return r }) }}
-                  onKeyDown={(e) => setCapsLock(e.getModifierState('CapsLock'))}
-                  onKeyUp={(e) => setCapsLock(e.getModifierState('CapsLock'))}
-                  className="auth-input"
-                  style={{ paddingRight: '2.5rem', ...(errors.password ? { borderColor: 'rgba(239,68,68,0.4)' } : {}) }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/50 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {errors.password
-                ? <p className="mt-1 text-[11px] text-red-400">{errors.password}</p>
-                : <PasswordStrength password={password} />
-              }
-              {capsLock && <p className="mt-1 text-[11px] text-yellow-400">CapsLock включён</p>}
-            </div>
-
-            {/* Remember */}
-            <label className="flex items-center gap-2 text-[12px] text-white/30">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="rounded"
-                style={{ accentColor: '#3B82F6' }}
-              />
-              {t('auth.rememberMe', 'Remember me')}
+              {errors.iin && <small>{errors.iin}</small>}
             </label>
 
-            {/* Error */}
-            {errorMessage && (
-              <div className="rounded-lg border border-red-500/15 bg-red-500/8 px-4 py-3 text-[13px] text-red-300">
-                {errorMessage}
-              </div>
-            )}
+            <label className="tetis-field">
+              <span>Email, необязательно</span>
+              <input
+                type="email"
+                placeholder="doctor@saphena.kz"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  clearFieldError('email')
+                }}
+                aria-invalid={Boolean(errors.email)}
+              />
+              {errors.email && <small>{errors.email}</small>}
+            </label>
 
-            {/* Submit */}
-            <button type="submit" disabled={loading} className="auth-submit-btn w-full mt-1">
-              {loading ? (
-                <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <ArrowRight className="mr-2 h-4 w-4" />
-              )}
-              {loading ? t('auth.registering', 'Creating...') : t('auth.registerButton', 'Create Account')}
+            <label className="tetis-field">
+              <span>Пароль</span>
+              <div className="tetis-password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Минимум 8 символов"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    clearFieldError('password')
+                  }}
+                  aria-invalid={Boolean(errors.password)}
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label="Показать пароль">
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              {errors.password ? <small>{errors.password}</small> : password && <small className="tetis-help-ok">Пароль подходит для регистрации</small>}
+            </label>
+
+            <div className="tetis-auth-options">
+              <label>
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                <span>Запомнить меня</span>
+              </label>
+            </div>
+
+            <button type="submit" disabled={loading} className="tetis-submit-btn">
+              <span>{loading ? 'Создаем...' : 'Зарегистрироваться'}</span>
+              <ArrowRight className="h-5 w-5" />
             </button>
+
+            <div className="tetis-auth-bottom">
+              Уже есть аккаунт? <Link to="/login">Войти</Link>
+            </div>
           </form>
 
-          <OAuthButtons remember={remember} />
-
-          <p className="mt-6 text-center text-[12px] text-white/20">
-            {t('auth.hasAccount', 'Already have an account?')}{' '}
-            <Link to="/login" className="font-semibold text-primary transition-colors hover:text-primary-hover">
-              {t('auth.login', 'Sign In')}
-            </Link>
-          </p>
+          <div className="tetis-floating-card tetis-floating-card-top">
+            <FileText className="h-5 w-5 text-emerald-500" />
+            <div>
+              <strong>Документолог</strong>
+              <span>Шаблоны и меддокументы</span>
+            </div>
+          </div>
+          <div className="tetis-floating-card tetis-floating-card-bottom">
+            <HeartPulse className="h-5 w-5 text-sky-500" />
+            <div>
+              <strong>Медкарта</strong>
+              <span>История приемов пациента</span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }

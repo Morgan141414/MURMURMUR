@@ -1841,3 +1841,461 @@
     border-left: 3px solid var(--destructive);
   }
 }
+
+/* Tetis-inspired light medical auth screens */
+.tetis-auth-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(90, 197, 255, 0.36), transparent 28%),
+    radial-gradient(circle at 82% 74%, rgba(87, 220, 190, 0.28), transparent 30%),
+    linear-gradient(135deg, #f7fcff 0%, #eaf7ff 46%, #f7fbff 100%);
+  color: #0f172a;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.tetis-auth-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  width: min(1180px, calc(100% - 48px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) 0;
+  align-items: center;
+}
+
+.tetis-auth-hero-register {
+  grid-template-columns: minmax(0, 0.95fr) minmax(440px, 1fr);
+}
+
+.tetis-auth-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(6px);
+  opacity: 0.68;
+}
+
+.tetis-auth-orb-a {
+  width: 270px;
+  height: 270px;
+  left: -120px;
+  top: 90px;
+  background: rgba(67, 178, 255, 0.22);
+}
+
+.tetis-auth-orb-b {
+  width: 220px;
+  height: 220px;
+  right: -90px;
+  bottom: 60px;
+  background: rgba(27, 196, 164, 0.18);
+}
+
+.tetis-auth-left {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 690px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.tetis-auth-copy {
+  max-width: 610px;
+  padding: 3.5rem 0;
+}
+
+.tetis-auth-copy h1 {
+  margin-top: 1.4rem;
+  max-width: 680px;
+  color: #0f2847;
+  font-size: clamp(2.65rem, 5vw, 5.4rem);
+  font-weight: 820;
+  letter-spacing: -0.065em;
+  line-height: 0.94;
+}
+
+.tetis-auth-copy p {
+  margin-top: 1.4rem;
+  max-width: 520px;
+  color: #557086;
+  font-size: clamp(1rem, 1.6vw, 1.18rem);
+  line-height: 1.75;
+}
+
+.tetis-benefits {
+  margin-top: 2rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.tetis-benefit-row {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid rgba(14, 116, 144, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 40px rgba(15, 73, 116, 0.08);
+  padding: 0.75rem 1rem;
+  color: #24455e;
+  font-size: 0.95rem;
+  font-weight: 650;
+  backdrop-filter: blur(18px);
+}
+
+.tetis-step-index {
+  display: inline-flex;
+  width: 1.55rem;
+  height: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #1687d9;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.tetis-auth-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  max-width: 560px;
+}
+
+.tetis-auth-stats div {
+  border: 1px solid rgba(14, 116, 144, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 20px 55px rgba(15, 73, 116, 0.08);
+  padding: 1rem;
+  backdrop-filter: blur(20px);
+}
+
+.tetis-auth-stats strong,
+.tetis-auth-stats span {
+  display: block;
+}
+
+.tetis-auth-stats strong {
+  color: #0f2847;
+  font-size: 1.25rem;
+  font-weight: 820;
+}
+
+.tetis-auth-stats span {
+  margin-top: 0.25rem;
+  color: #647d91;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.tetis-auth-card-wrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tetis-auth-card {
+  width: min(100%, 430px);
+  border: 1px solid rgba(14, 116, 144, 0.12);
+  border-radius: 34px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 34px 100px rgba(15, 73, 116, 0.18);
+  padding: clamp(1.5rem, 3vw, 2.15rem);
+  backdrop-filter: blur(24px);
+}
+
+.tetis-register-card {
+  width: min(100%, 470px);
+}
+
+.tetis-auth-card-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.65rem;
+}
+
+.tetis-auth-card-head h2 {
+  color: #10243c;
+  font-size: 1.62rem;
+  font-weight: 820;
+  letter-spacing: -0.035em;
+}
+
+.tetis-auth-card-head p {
+  margin-top: 0.2rem;
+  color: #6b8295;
+  font-size: 0.92rem;
+}
+
+.tetis-auth-alert {
+  margin-bottom: 1rem;
+  border: 1px solid rgba(2, 132, 199, 0.14);
+  border-radius: 18px;
+  background: #eff8ff;
+  padding: 0.85rem 1rem;
+  color: #075985;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.tetis-auth-alert-danger {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.tetis-field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.tetis-field > span {
+  display: block;
+  margin-bottom: 0.48rem;
+  color: #29455e;
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.tetis-field input,
+.tetis-password-field input {
+  width: 100%;
+  height: 52px;
+  border: 1px solid #d8e7f1;
+  border-radius: 17px;
+  background: #f9fdff;
+  padding: 0 1rem;
+  color: #10243c;
+  font-size: 0.96rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.tetis-field input::placeholder,
+.tetis-password-field input::placeholder {
+  color: #9bb0bf;
+  font-weight: 500;
+}
+
+.tetis-field input:focus,
+.tetis-password-field input:focus {
+  border-color: #1687d9;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(22, 135, 217, 0.12);
+}
+
+.tetis-field input[aria-invalid='true'],
+.tetis-password-field input[aria-invalid='true'] {
+  border-color: #fb7185;
+}
+
+.tetis-field small {
+  display: block;
+  margin-top: 0.4rem;
+  color: #e11d48;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.tetis-field .tetis-help-ok {
+  color: #059669;
+}
+
+.tetis-password-field {
+  position: relative;
+}
+
+.tetis-password-field input {
+  padding-right: 3rem;
+}
+
+.tetis-password-field button {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #7890a4;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.tetis-password-field button:hover {
+  background: #edf7ff;
+  color: #1687d9;
+}
+
+.tetis-auth-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.35rem 0 1.25rem;
+  color: #647d91;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.tetis-auth-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.48rem;
+}
+
+.tetis-auth-options input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #1687d9;
+}
+
+.tetis-auth-options a,
+.tetis-auth-bottom a {
+  color: #0b83d8;
+  font-weight: 800;
+}
+
+.tetis-submit-btn {
+  display: inline-flex;
+  width: 100%;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1687d9, #1ab4c5);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(22, 135, 217, 0.26);
+  font-size: 0.98rem;
+  font-weight: 820;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.tetis-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 24px 52px rgba(22, 135, 217, 0.32);
+}
+
+.tetis-submit-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.tetis-auth-bottom {
+  margin-top: 1.25rem;
+  text-align: center;
+  color: #6b8295;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.tetis-floating-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid rgba(14, 116, 144, 0.11);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 24px 65px rgba(15, 73, 116, 0.14);
+  padding: 0.9rem 1rem;
+  backdrop-filter: blur(18px);
+}
+
+.tetis-floating-card strong,
+.tetis-floating-card span {
+  display: block;
+}
+
+.tetis-floating-card strong {
+  color: #12314c;
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.tetis-floating-card span {
+  margin-top: 0.1rem;
+  color: #74899a;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.tetis-floating-card-top {
+  top: 5.4rem;
+  right: -1.4rem;
+}
+
+.tetis-floating-card-bottom {
+  left: -1.2rem;
+  bottom: 6rem;
+}
+
+@media (max-width: 1024px) {
+  .tetis-auth-hero,
+  .tetis-auth-hero-register {
+    grid-template-columns: 1fr;
+    width: min(680px, calc(100% - 32px));
+    gap: 1.5rem;
+    padding: 2rem 0;
+  }
+
+  .tetis-auth-left {
+    min-height: auto;
+    gap: 2rem;
+  }
+
+  .tetis-auth-copy {
+    padding: 1.5rem 0 0;
+  }
+
+  .tetis-auth-copy h1 {
+    font-size: clamp(2.35rem, 11vw, 4rem);
+  }
+
+  .tetis-auth-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .tetis-floating-card {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .tetis-auth-hero,
+  .tetis-auth-hero-register {
+    width: min(100% - 24px, 520px);
+  }
+
+  .tetis-auth-card {
+    border-radius: 26px;
+    padding: 1.25rem;
+  }
+
+  .tetis-auth-card-head h2 {
+    font-size: 1.38rem;
+  }
+
+  .tetis-auth-options {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tetis-benefit-row {
+    width: 100%;
+    border-radius: 20px;
+  }
+}
