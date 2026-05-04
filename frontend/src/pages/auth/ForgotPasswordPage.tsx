@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
             <LogoMark />
           </div>
-          <span className="text-[15px] font-semibold text-white tracking-tight">Saphena M.I.S.</span>
+          <span className="text-[15px] font-semibold text-white tracking-tight">Bloom OS</span>
         </div>
 
         <div className="auth-form-card animate-fade-in-up">

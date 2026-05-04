@@ -1,30 +1,39 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { CalendarCheck2, Eye, EyeOff, HeartPulse, ShieldCheck, Stethoscope, UsersRound } from 'lucide-react'
-
+import { useTranslation } from 'react-i18next'
+import { Eye, EyeOff, ArrowRight, Users, BarChart3, Zap, CheckCircle, Shield, Layers } from 'lucide-react'
 import { login } from '@/api/auth'
-import { listMyOrgs } from '@/api/orgs'
 import { getMe } from '@/api/profile'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { listMyOrgs } from '@/api/orgs'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
-const HIGHLIGHTS = [
-  'Вход сотрудников по ИИН и паролю',
-  'Клиники, роли и права доступа',
-  'Пациенты, записи, расписание и медкарта',
-  'Документы, уведомления, аудит и поддержка',
+const FEATURES = [
+  { icon: Users, text: 'Real-time team & role management' },
+  { icon: BarChart3, text: 'Analytics, reports & KPI dashboards' },
+  { icon: Zap, text: 'Automated HR & recruitment workflows' },
+  { icon: CheckCircle, text: 'Task tracking & approval chains' },
+  { icon: Shield, text: 'Enterprise-grade security & RBAC' },
+  { icon: Layers, text: 'Multi-shell architecture per role' },
 ]
 
-function MedicalMark() {
+const AVATARS = ['A', 'M', 'S', 'D', 'K']
+
+/* ── Logo Mark ── */
+function LogoMark() {
   return (
-    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-600 text-white shadow-lg shadow-cyan-200">
-      <Stethoscope className="h-6 w-6" />
-    </div>
+    <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+      <path
+        d="M1.04356 6.35771L13.6437 0.666504L13.2006 3.16498L3.01927 7.80327L13.2006 12.4416L13.6437 14.94L1.04356 9.24883L0.333374 7.80327L1.04356 6.35771ZM14.3994 3.16498L14.8425 0.666504L27.4426 6.35771L28.1528 7.80327L27.4426 9.24883L14.8425 14.94L14.3994 12.4416L24.5807 7.80327L14.3994 3.16498Z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   usePageTitle()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -37,168 +46,286 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
+  const [capsLock, setCapsLock] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const normalizedIin = iin.replace(/\s+/g, '')
-
-  function validate() {
-    if (!/^\d{12}$/.test(normalizedIin)) {
-      setError('Введите корректный ИИН: 12 цифр')
-      return false
-    }
-    if (password.length < 8) {
-      setError('Пароль должен быть не менее 8 символов')
-      return false
-    }
-    return true
+  function validate(): boolean {
+    const e: Record<string, string> = {}
+    const compactIin = iin.replace(/\s+/g, '')
+    if (!compactIin) e.email = t('auth.fieldRequired', 'Required')
+    else if (!/^\d{12}$/.test(compactIin)) e.email = t('auth.invalidIin', 'Enter a valid IIN (12 digits)')
+    if (!password) e.password = t('auth.fieldRequired', 'Required')
+    else if (password.length < 8) e.password = t('auth.passwordTooShort', 'Min 8 characters')
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
     if (!validate()) return
     setLoading(true)
-
+    setErrorMessage('')
     try {
-      const { data: tokenData } = await login(normalizedIin, password)
+      const { data: tokenData } = await login(iin.replace(/\s+/g, ''), password)
       const token = tokenData.access_token
-      const refreshToken = tokenData.refresh_token ?? null
+      const refreshTkn = tokenData.refresh_token ?? null
       const storage = remember ? localStorage : sessionStorage
-      storage.setItem('auth-storage', JSON.stringify({ state: { token, refreshToken }, version: 0 }))
-
+      storage.setItem('auth-storage', JSON.stringify({ state: { token, refreshToken: refreshTkn }, version: 0 }))
       const { data: user } = await getMe()
-      setAuth(token, refreshToken, user, remember ? 'local' : 'session')
-
+      setAuth(token, refreshTkn, user, remember ? 'local' : 'session')
       try {
         const { data: orgs } = await listMyOrgs()
-        setOrgs(orgs.map((o) => ({
-          orgId: o.id,
-          orgName: o.name,
-          role: o.role,
-          logoUrl: o.logo_url ?? undefined,
-          isActive: o.is_active ?? true,
-          moderationStatus: o.moderation_status ?? 'pending',
-          moderationComment: o.moderation_comment ?? null,
-        })))
-      } catch {
-        // Auth remains valid even if clinic list cannot be loaded immediately.
-      }
-
+        setOrgs(
+          orgs.map((o) => ({
+            orgId: o.id,
+            orgName: o.name,
+            role: o.role,
+            logoUrl: o.logo_url ?? undefined,
+            isActive: o.is_active ?? true,
+            moderationStatus: o.moderation_status ?? 'pending',
+            moderationComment: o.moderation_comment ?? null,
+          })),
+        )
+      } catch { /* ok */ }
       navigate('/dashboard')
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      if (Array.isArray(detail)) {
-        setError(detail.map((e: { msg?: string }) => e.msg ?? '').join('; '))
-      } else if (typeof detail === 'string') {
-        setError(detail)
-      } else {
-        setError('Ошибка входа. Проверьте ИИН и пароль.')
-      }
+      let msg: string
+      if (Array.isArray(detail)) msg = detail.map((e: { msg?: string }) => e.msg ?? '').join('; ')
+      else if (typeof detail === 'string') msg = detail
+      else msg = t('auth.loginError')
+      setErrorMessage(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,#f8fdff_0%,#e9fbff_44%,#f0fdf4_100%)]">
-      <div className="absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-cyan-200/40 blur-3xl" />
-      <div className="absolute bottom-[-10rem] right-[-8rem] h-96 w-96 rounded-full bg-emerald-200/45 blur-3xl" />
+    <div className="auth-scene relative flex min-h-screen overflow-hidden">
+      {/* Blobs */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="auth-blob auth-blob-1" />
+        <div className="auth-blob auth-blob-2" />
+        <div className="auth-blob auth-blob-3" />
+      </div>
+      {/* Grid overlay */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+        }}
+      />
 
-      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 gap-8 px-5 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:px-10">
-        <section className="flex items-center">
-          <div className="w-full rounded-[32px] border border-white/80 bg-white/75 p-6 shadow-2xl shadow-cyan-100/70 backdrop-blur-xl lg:p-10">
-            <div className="mb-8 flex items-center gap-4">
-              <MedicalMark />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">Saphena M.I.S.</p>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-950 lg:text-5xl">Медицинская информационная система</h1>
-              </div>
-            </div>
-
-            <p className="max-w-2xl text-base leading-7 text-slate-600">
-              Рабочий контур клиники: сотрудники, пациенты, расписание, медкарты, документы и контроль доступа в одной системе.
-            </p>
-
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-3xl border border-cyan-100 bg-cyan-50 p-4">
-                <HeartPulse className="mb-3 h-5 w-5 text-cyan-700" />
-                <p className="text-sm font-semibold text-slate-950">Пациенты</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Прикрепление, поиск и история обращений</p>
-              </div>
-              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-                <CalendarCheck2 className="mb-3 h-5 w-5 text-blue-700" />
-                <p className="text-sm font-semibold text-slate-950">Расписание</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Записи, слоты и статусы визитов</p>
-              </div>
-              <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-                <UsersRound className="mb-3 h-5 w-5 text-emerald-700" />
-                <p className="text-sm font-semibold text-slate-950">Роли</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Доступ по клиникам и сотрудникам</p>
-              </div>
-            </div>
-
-            <ul className="mt-8 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
-              {HIGHLIGHTS.map((item) => (
-                <li key={item} className="flex items-start gap-2 rounded-2xl bg-white/70 px-3 py-2 ring-1 ring-slate-100">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+      {/* ═══ Left Hero Panel ═══ */}
+      <div className="relative hidden flex-col justify-between p-12 lg:flex lg:w-[52%]">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+            <LogoMark />
           </div>
-        </section>
+          <span className="text-[15px] font-semibold text-white tracking-tight">Bloom OS</span>
+        </div>
 
-        <section className="flex items-center justify-center">
-          <div className="w-full max-w-md rounded-[32px] border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-200/70 lg:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">Защищённый доступ</p>
-            <h2 className="mt-3 text-3xl font-bold text-slate-950">Вход в систему</h2>
-            <p className="mt-2 text-sm text-slate-500">Используйте ИИН и пароль сотрудника клиники</p>
-            {sessionExpired && (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Сессия завершена. Войдите повторно.
+        {/* Main content */}
+        <div className="max-w-lg animate-fade-in-up">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-white/40 backdrop-blur-sm">
+            <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-success" />
+            Enterprise Platform
+          </div>
+
+          <h1 className="text-[2.75rem] font-bold leading-[1.1] tracking-tight text-white">
+            Manage your{' '}
+            <span className="text-gradient-brand">company</span>
+            {' '}operations
+          </h1>
+
+          <p className="mt-5 max-w-md text-[14px] leading-relaxed text-white/35">
+            A unified platform for HR, recruitment, project management,
+            analytics, and enterprise automation.
+          </p>
+
+          {/* Feature list */}
+          <div className="mt-10 space-y-2.5">
+            {FEATURES.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 animate-fade-in-up"
+                style={{ animationDelay: `${100 + i * 50}ms` }}
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/[0.04] border border-white/[0.06]">
+                  <f.icon className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <span className="text-[13px] text-white/45">{f.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Social proof */}
+          <div className="mt-12 border-t border-white/[0.06] pt-7">
+            <div className="flex items-center gap-4">
+              <div className="flex -space-x-2">
+                {AVATARS.map((l, i) => (
+                  <div
+                    key={i}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#060C1A] text-[11px] font-bold text-white"
+                    style={{ background: `linear-gradient(135deg, hsl(${210 + i * 25}, 70%, 50%), hsl(${230 + i * 25}, 70%, 45%))` }}
+                  >
+                    {l}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-white">1,000+ professionals</p>
+                <p className="text-[11px] text-white/30">use the platform daily</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-white/15">&copy; {new Date().getFullYear()} Bloom OS. All rights reserved.</p>
+      </div>
+
+      {/* ═══ Right Auth Panel ═══ */}
+      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-12">
+        <div className="auth-form-card w-full max-w-[400px] animate-fade-in-up" style={{ animationDelay: '80ms' }}>
+          {/* Mobile logo */}
+          <div className="mb-7 flex items-center gap-2.5 lg:hidden">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <LogoMark />
+            </div>
+            <span className="text-[14px] font-semibold text-white">Bloom OS</span>
+          </div>
+
+          <div className="mb-7">
+            <h2 className="text-[22px] font-bold text-white">{t('auth.welcomeBack', 'Welcome back')}</h2>
+            <p className="mt-1.5 text-[13px] text-white/30">
+              {t('auth.loginSubtitle', 'Enter your credentials to sign in')}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-white/40">
+                {t('auth.emailOrIin', 'Email / IIN')}
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder={t('auth.iinPlaceholder', '123456789012')}
+                value={iin}
+                onChange={(e) => { setIin(e.target.value); setErrorMessage(''); setErrors((p) => { const { email: _, ...r } = p; return r }) }}
+                className="auth-input"
+                style={errors.email ? { borderColor: 'rgba(239,68,68,0.4)' } : {}}
+              />
+              {errors.email && <p className="mt-1 text-[11px] text-red-400">{errors.email}</p>}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-white/40">
+                {t('auth.password', 'Password')}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); setErrors((p) => { const { password: _, ...r } = p; return r }) }}
+                  onKeyDown={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+                  onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+                  className="auth-input"
+                  style={{ paddingRight: '2.5rem', ...(errors.password ? { borderColor: 'rgba(239,68,68,0.4)' } : {}) }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/50 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              {errors.password && <p className="mt-1 text-[11px] text-red-400">{errors.password}</p>}
+              {capsLock && <p className="mt-1 text-[11px] text-yellow-400">CapsLock включён</p>}
+            </div>
+
+            {/* Remember / Forgot */}
+            <div className="flex items-center justify-between">
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/30">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="rounded"
+                  style={{ accentColor: '#3B82F6' }}
+                />
+                {t('auth.rememberMe', 'Remember me')}
+              </label>
+              <Link to="/forgot-password" className="text-[12px] font-medium text-primary transition-colors hover:text-primary-hover">
+                {t('auth.forgotPassword', 'Forgot password?')}
+              </Link>
+            </div>
+
+            {/* Error */}
+            {errorMessage && (
+              <div className="rounded-lg border border-red-500/15 bg-red-500/8 px-4 py-3 text-[13px] text-red-300">
+                {errorMessage}
               </div>
             )}
-            <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">ИИН</label>
-                <input
-                  value={iin}
-                  onChange={(e) => { setIin(e.target.value); setError('') }}
-                  inputMode="numeric"
-                  placeholder="123456789012"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Пароль</label>
-                <div className="relative">
-                  <input
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError('') }}
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Минимум 8 символов"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100"
-                  />
-                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-                Запомнить меня
-              </label>
-              {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-              <button type="submit" disabled={loading} className="w-full rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-200 transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {loading ? 'Вход...' : 'Войти'}
-              </button>
-            </form>
-            <p className="mt-5 text-sm text-slate-600">
-              Нет аккаунта?{' '}
-              <Link className="font-bold text-cyan-700 hover:text-cyan-800" to="/register">Зарегистрироваться</Link>
-            </p>
+
+            {/* Submit */}
+            <button type="submit" disabled={loading} className="auth-submit-btn mt-1">
+              {loading ? (
+                <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <ArrowRight className="mr-2 h-4 w-4" />
+              )}
+              {loading ? t('auth.loggingIn', 'Signing in...') : t('auth.loginButton', 'Sign In')}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/[0.06]" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-[rgba(17,24,39,0.9)] px-3 text-[11px] text-white/20">or continue with</span>
+            </div>
           </div>
-        </section>
+
+          {/* OAuth */}
+          <div className="grid grid-cols-2 gap-3">
+            <button className="auth-oauth-btn">
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              Google
+            </button>
+            <button className="auth-oauth-btn">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+              </svg>
+              Apple
+            </button>
+          </div>
+
+          <p className="mt-6 text-center text-[12px] text-white/20">
+            {t('auth.noAccount', "Don't have an account?")}{' '}
+            <Link to="/register" className="font-semibold text-primary transition-colors hover:text-primary-hover">
+              {t('auth.register', 'Sign Up')}
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )
