@@ -4,18 +4,6 @@ import { useUiStore } from '@/stores/uiStore'
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useUiStore((s) => s.theme)
-  const setTheme = useUiStore((s) => s.setTheme)
-
-  useEffect(() => {
-    try {
-      if (localStorage.getItem('saphena-medical-theme-v1') !== 'true') {
-        localStorage.setItem('saphena-medical-theme-v1', 'true')
-        setTheme('light')
-      }
-    } catch {
-      setTheme('light')
-    }
-  }, [setTheme])
 
   useEffect(() => {
     const root = document.documentElement
