@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { LifeBuoy, Loader2, Send } from "lucide-react";
@@ -190,7 +191,7 @@ export default function SupportPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        <section className="space-y-3 rounded-lg border border-border bg-card p-3">
+        <section className="medical-section space-y-3 p-3">
           <form onSubmit={handleCreateThread} className="space-y-2 border-b border-border pb-3">
             <Input
               value={newSubject}
@@ -264,7 +265,7 @@ export default function SupportPage() {
                 key={thread.id}
                 onClick={() => handleSelectThread(thread.id)}
                 className={`w-full rounded-md border px-3 py-2 text-left transition ${
-                  selectedId === thread.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                  selectedId === thread.id ? "border-primary bg-primary/10 shadow-sm" : "border-border hover:bg-muted/60"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -286,7 +287,7 @@ export default function SupportPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-4">
+        <section className="medical-section p-4">
           {!selected ? (
             <div className="flex h-[60vh] flex-col items-center justify-center gap-2 text-muted-foreground">
               <LifeBuoy className="h-6 w-6" />
@@ -349,7 +350,14 @@ export default function SupportPage() {
                 {(selected.messages ?? []).map((msg) => {
                   const mine = msg.author_account_id === selected.requester_account_id;
                   return (
-                    <div key={msg.id} className={`max-w-[85%] rounded-lg border p-3 ${mine ? "ml-0" : "ml-auto bg-muted/40"}`}>
+                    <div
+                      key={msg.id}
+                      className={`max-w-[85%] rounded-lg border p-3 ${
+                        mine
+                          ? "ml-0 border-primary/30 bg-primary/10"
+                          : "ml-auto border-border bg-muted/60"
+                      }`}
+                    >
                       <p className="text-sm whitespace-pre-wrap">{msg.body}</p>
                       <p className="mt-1 text-[11px] text-muted-foreground">{formatDate(msg.created_at)}</p>
                     </div>
