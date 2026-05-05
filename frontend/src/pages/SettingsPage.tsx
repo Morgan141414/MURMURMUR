@@ -305,8 +305,8 @@ export default function SettingsPage() {
         }
       />
 
-      <section className="relative overflow-hidden rounded-[32px] border border-border bg-card p-6 sm:p-8">
-        <div className="absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(244,114,182,0.16),transparent_28%),radial-gradient(circle_at_center,rgba(59,130,246,0.14),transparent_30%)]" />
+      <section className="relative overflow-hidden rounded-[20px] border border-border bg-card p-6 sm:p-8">
+        <div className="absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.2),transparent_34%),radial-gradient(circle_at_top_right,rgba(34,166,242,0.14),transparent_30%),radial-gradient(circle_at_center,rgba(16,185,129,0.1),transparent_36%)]" />
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_320px]">
           <div className="flex items-start gap-4">
             <ProfileAvatar fullName={fullName} avatarUrl={avatarUrl} />
