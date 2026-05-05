@@ -823,10 +823,10 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
             <Sparkles className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">
-            {t('onboarding.welcome', 'Добро пожаловать в Bloom OS')}
+            {t('onboarding.welcome', 'Добро пожаловать в M.I.S. Saphena')}
           </h1>
-          <p className="mt-3 text-[14px] text-white/40 max-w-md mx-auto leading-relaxed">
-            {t('onboarding.welcomeDesc', 'Настройте своё рабочее пространство за несколько минут. Создайте новую компанию или присоединитесь к существующей.')}
+          <p className="mt-3 text-[14px] text-white/40 max-w-xl mx-auto leading-relaxed">
+            {t('onboarding.welcomeDesc', 'Запустите клинику в едином контуре: сотрудники, пациенты, записи, расписание, базовая медкарта, документы, CRM, уведомления и аудит.')}
           </p>
         </div>
 
@@ -843,13 +843,13 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
                 <Rocket className="h-6 w-6 text-indigo-400" />
               </div>
               <h3 className="text-[16px] font-semibold text-white mb-1.5">
-                Создать стартап
+                Частная практика
               </h3>
               <p className="text-[13px] text-white/35 leading-relaxed">
-                Для проектовы или проекта без оформленного юрлица. Документы не обязательны.
+                Быстрый старт для врача или небольшого кабинета. Можно начать без полного пакета документов.
               </p>
               <div className="mt-5 flex items-center gap-1.5 text-[12px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                Начать <ChevronRight className="h-3.5 w-3.5" />
+                Запустить контур <ChevronRight className="h-3.5 w-3.5" />
               </div>
             </div>
           </button>
@@ -865,13 +865,13 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
                 <Building2 className="h-6 w-6 text-primary" />
               </div>
               <h3 className="text-[16px] font-semibold text-white mb-1.5">
-                {t('onboarding.createOrg', 'Создать компанию')}
+                {t('onboarding.createOrg', 'Открыть клинику')}
               </h3>
               <p className="text-[13px] text-white/35 leading-relaxed">
-                {t('onboarding.createOrgDesc', 'Вы станете основателем компании и получите полный контроль над настройками, ролями и проектами.')}
+                {t('onboarding.createOrgDesc', 'Вы станете основателем клиники и получите полный контроль над ролями, отделениями, расписанием, пациентами и документами.')}
               </p>
               <div className="mt-5 flex items-center gap-1.5 text-[12px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                Начать <ChevronRight className="h-3.5 w-3.5" />
+                Подать заявку <ChevronRight className="h-3.5 w-3.5" />
               </div>
             </div>
           </button>
@@ -887,16 +887,34 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
                 <Users className="h-6 w-6 text-emerald-400" />
               </div>
               <h3 className="text-[16px] font-semibold text-white mb-1.5">
-                {t('onboarding.joinOrg', 'Присоединиться к компании')}
+                {t('onboarding.joinOrg', 'Войти в клинику')}
               </h3>
               <p className="text-[13px] text-white/35 leading-relaxed">
-                {t('onboarding.joinOrgDesc', 'Введите код приглашения от вашего работодателя, чтобы запросить доступ.')}
+                {t('onboarding.joinOrgDesc', 'Введите код приглашения от администратора клиники, чтобы получить доступ в систему.')}
               </p>
               <div className="mt-5 flex items-center gap-1.5 text-[12px] font-medium text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                Ввести код <ChevronRight className="h-3.5 w-3.5" />
+                Подключиться <ChevronRight className="h-3.5 w-3.5" />
               </div>
             </div>
           </button>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-white/40">M.I.S. modules</p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {[
+              'Пациенты и база записей',
+              'Расписание врачей и слоты',
+              'Базовая медицинская карта',
+              'Документы и шаблоны',
+              'Техподдержка и уведомления',
+              'CRM и журнал аудита',
+            ].map((item) => (
+              <div key={item} className="rounded-xl border border-white/[0.05] bg-black/20 px-3 py-2 text-[12px] text-white/70">
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Quick links */}
@@ -905,8 +923,12 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
             Настроить профиль
           </button>
           <span>·</span>
-          <button onClick={() => navigate('/vacancies')} className="hover:text-white/50 transition-colors">
-            Посмотреть вакансии
+          <button onClick={() => navigate('/company/clinical')} className="hover:text-white/50 transition-colors">
+            Открыть клинический модуль
+          </button>
+          <span>·</span>
+          <button onClick={() => navigate('/company/crm')} className="hover:text-white/50 transition-colors">
+            Открыть CRM
           </button>
           {onDismiss && (
             <>
@@ -938,18 +960,18 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/10">
             <Users className="h-7 w-7 text-emerald-400" />
           </div>
-          <h2 className="text-xl font-bold text-white">Присоединиться к компании</h2>
+          <h2 className="text-xl font-bold text-white">Присоединиться к клинике</h2>
           <p className="mt-2 text-[13px] text-white/35">
-            Введите код организации от вашего работодателя
+            Введите код приглашения, который выдал администратор клиники
           </p>
         </div>
 
         <WizardCard>
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-white/40">Код организации</label>
+              <label className="mb-1.5 block text-[12px] font-medium text-white/40">Код клиники</label>
               <input
-                placeholder="например, BLOOM-XXXX-XXXX"
+                placeholder="например, MIS-KZ-CLINIC-2026"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 autoFocus
@@ -966,7 +988,7 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
               ) : (
                 <>
                   <ArrowRight className="h-4 w-4" />
-                  Send Join Request
+                  Отправить запрос
                 </>
               )}
             </button>
@@ -975,7 +997,7 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
 
         <div className="mt-5 rounded-xl border border-white/[0.04] bg-white/[0.01] p-4">
           <p className="text-[12px] text-white/25 leading-relaxed">
-            Код организации вам может предоставить HR-менеджер или администратор компании. После отправки ваша заявка будет рассмотрена, и вы получите уведомление после одобрения.
+            Код клиники вам выдаёт администратор или главный врач. После отправки запрос попадет на проверку и вы получите уведомление после одобрения.
           </p>
         </div>
       </div>
