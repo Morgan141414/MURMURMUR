@@ -101,6 +101,11 @@ export default function ClinicalWorkspacePage() {
   const [roomNumber, setRoomNumber] = useState('')
   const [roomTitle, setRoomTitle] = useState('')
 
+  const [appointmentStatusFilter, setAppointmentStatusFilter] = useState<'all' | string>('all')
+  const [appointmentDoctorFilter, setAppointmentDoctorFilter] = useState<'all' | string>('all')
+  const [appointmentRoomFilter, setAppointmentRoomFilter] = useState<'all' | string>('all')
+  const [appointmentDateFilter, setAppointmentDateFilter] = useState('')
+
   async function refreshClinicalData() {
     if (!clinicId) return
     setLoading(true)
@@ -413,6 +418,22 @@ export default function ClinicalWorkspacePage() {
   const branchDepartmentOptions = departments.filter(
     (department) => !roomBranchId || String(department.branch_id) === roomBranchId,
   )
+  const appointmentStatusOptions = Array.from(new Set(appointments.map((appointment) => appointment.status))).sort()
+  const filteredAppointments = appointments
+    .filter((appointment) => {
+      if (appointmentStatusFilter !== 'all' && appointment.status !== appointmentStatusFilter) return false
+      if (appointmentDoctorFilter !== 'all' && String(appointment.doctor_membership_id ?? '') !== appointmentDoctorFilter) return false
+      if (appointmentRoomFilter !== 'all' && String(appointment.room_id ?? '') !== appointmentRoomFilter) return false
+      if (appointmentDateFilter) {
+        const startsAt = new Date(appointment.starts_at)
+        const localDate = new Date(startsAt.getTime() - startsAt.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 10)
+        if (localDate !== appointmentDateFilter) return false
+      }
+      return true
+    })
+    .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
 
   return (
     <div className="space-y-6">
@@ -854,8 +875,40 @@ export default function ClinicalWorkspacePage() {
         </div>
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-950"><CalendarCheck2 className="h-5 w-5 text-blue-700" /> Записи</h4>
+          <div className="mb-3 grid gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select value={appointmentStatusFilter} onChange={(event) => setAppointmentStatusFilter(event.target.value)} className={inputClass}>
+                <option value="all">Все статусы</option>
+                {appointmentStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+              <input
+                type="date"
+                value={appointmentDateFilter}
+                onChange={(event) => setAppointmentDateFilter(event.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select value={appointmentDoctorFilter} onChange={(event) => setAppointmentDoctorFilter(event.target.value)} className={inputClass}>
+                <option value="all">Все врачи</option>
+                {availableDoctors.map((employee) => (
+                  <option key={employee.id} value={String(employee.id)}>
+                    #{employee.id} {employee.position || employee.role_code}
+                  </option>
+                ))}
+              </select>
+              <select value={appointmentRoomFilter} onChange={(event) => setAppointmentRoomFilter(event.target.value)} className={inputClass}>
+                <option value="all">Все кабинеты</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={String(room.id)}>
+                    Каб. {room.number}{room.title ? ` · ${room.title}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="space-y-2 text-sm">
-            {appointments.slice(0, 10).map((appointment) => (
+            {filteredAppointments.slice(0, 14).map((appointment) => (
               <div key={appointment.id} className="rounded-2xl bg-slate-50 px-3 py-3 text-slate-700">
                 <button
                   type="button"
@@ -866,6 +919,11 @@ export default function ClinicalWorkspacePage() {
                 </button>
                 <p className="mt-1 text-xs text-slate-500">
                   {appointment.reason || 'Без причины'} · {appointment.status}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Врач: {appointment.doctor_membership_id ? `#${appointment.doctor_membership_id}` : 'не назначен'}
+                  {' · '}
+                  Кабинет: {appointment.room_id ? `#${appointment.room_id}` : 'не указан'}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {appointment.status === 'created' ? (
@@ -898,7 +956,7 @@ export default function ClinicalWorkspacePage() {
                 </div>
               </div>
             ))}
-            {appointments.length === 0 ? <p className="text-slate-500">Пока нет записей.</p> : null}
+            {filteredAppointments.length === 0 ? <p className="text-slate-500">По фильтрам записей нет.</p> : null}
           </div>
         </div>
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
