@@ -1,23 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarClock, CalendarCheck2, ClipboardPlus, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
+import { BriefcaseMedical, CalendarClock, CalendarCheck2, ClipboardPlus, DoorOpen, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
 import {
+  assignClinicEmployee,
+  createClinicRoom,
   attachPatientToClinic,
   createAppointment,
   createMedicalRecord,
   createPatient,
   createScheduleSlot,
+  listClinicBranches,
+  listClinicDepartments,
   listAppointments,
   listClinicEmployees,
   listClinicPatients,
+  listClinicRooms,
   listMedicalRecords,
+  listRoleCatalog,
   listScheduleSlots,
   updateAppointment,
   type Appointment,
+  type ClinicBranch,
+  type ClinicDepartment,
   type ClinicMembership,
+  type ClinicRoom,
   type MedicalRecordEntry,
   type Patient,
+  type RoleDefinition,
   type ScheduleSlot,
 } from '@/api/clinical'
 import { Button } from '@/components/ui/button'
@@ -52,6 +62,10 @@ export default function ClinicalWorkspacePage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecordEntry[]>([])
   const [employees, setEmployees] = useState<ClinicMembership[]>([])
+  const [roleCatalog, setRoleCatalog] = useState<RoleDefinition[]>([])
+  const [branches, setBranches] = useState<ClinicBranch[]>([])
+  const [departments, setDepartments] = useState<ClinicDepartment[]>([])
+  const [rooms, setRooms] = useState<ClinicRoom[]>([])
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
@@ -77,6 +91,16 @@ export default function ClinicalWorkspacePage() {
   const [recordDiagnosis, setRecordDiagnosis] = useState('')
   const [recordConclusion, setRecordConclusion] = useState('')
 
+  const [employeeIin, setEmployeeIin] = useState('')
+  const [employeeRoleCode, setEmployeeRoleCode] = useState('')
+  const [employeeDepartment, setEmployeeDepartment] = useState('')
+  const [employeePosition, setEmployeePosition] = useState('')
+
+  const [roomBranchId, setRoomBranchId] = useState('')
+  const [roomDepartmentId, setRoomDepartmentId] = useState('')
+  const [roomNumber, setRoomNumber] = useState('')
+  const [roomTitle, setRoomTitle] = useState('')
+
   async function refreshClinicalData() {
     if (!clinicId) return
     setLoading(true)
@@ -87,18 +111,30 @@ export default function ClinicalWorkspacePage() {
         medicalRecordsResponse,
         employeesResponse,
         scheduleSlotsResponse,
+        roleCatalogResponse,
+        branchesResponse,
+        departmentsResponse,
+        roomsResponse,
       ] = await Promise.all([
         listClinicPatients(clinicId),
         listAppointments(clinicId),
         listMedicalRecords(clinicId),
         listClinicEmployees(clinicId),
         listScheduleSlots(clinicId),
+        listRoleCatalog(),
+        listClinicBranches(clinicId),
+        listClinicDepartments(clinicId),
+        listClinicRooms(clinicId),
       ])
       setPatients(patientsResponse.data)
       setAppointments(appointmentsResponse.data)
       setMedicalRecords(medicalRecordsResponse.data)
       setEmployees(employeesResponse.data)
       setScheduleSlots(scheduleSlotsResponse.data)
+      setRoleCatalog(roleCatalogResponse.data)
+      setBranches(branchesResponse.data)
+      setDepartments(departmentsResponse.data)
+      setRooms(roomsResponse.data)
     } catch {
       toast.error('Не удалось загрузить клинические данные')
     } finally {
@@ -276,6 +312,53 @@ export default function ClinicalWorkspacePage() {
     }
   }
 
+  async function handleAssignEmployee() {
+    if (!clinicId) return
+    if (!employeeIin || !employeeRoleCode) {
+      toast.error('Укажите ИИН сотрудника и роль')
+      return
+    }
+    try {
+      await assignClinicEmployee(clinicId, {
+        iin: employeeIin.trim(),
+        role_code: employeeRoleCode,
+        department: employeeDepartment.trim() || undefined,
+        position: employeePosition.trim() || undefined,
+      })
+      toast.success('Сотрудник назначен в клинику')
+      setEmployeeIin('')
+      setEmployeeDepartment('')
+      setEmployeePosition('')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось назначить сотрудника. Проверьте ИИН и доступы.')
+    }
+  }
+
+  async function handleCreateRoom() {
+    if (!clinicId) return
+    const branchId = Number(roomBranchId)
+    if (!branchId || !roomNumber.trim()) {
+      toast.error('Выберите филиал и укажите номер кабинета')
+      return
+    }
+    const departmentId = roomDepartmentId ? Number(roomDepartmentId) : null
+    try {
+      await createClinicRoom(clinicId, {
+        branch_id: branchId,
+        department_id: departmentId || undefined,
+        number: roomNumber.trim(),
+        title: roomTitle.trim() || undefined,
+      })
+      toast.success('Кабинет добавлен')
+      setRoomNumber('')
+      setRoomTitle('')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось создать кабинет')
+    }
+  }
+
   async function handleUpdateAppointmentStatus(appointment: Appointment, status: string) {
     if (!clinicId) return
     try {
@@ -325,6 +408,10 @@ export default function ClinicalWorkspacePage() {
   const selectedNextAppointment = selectedPatientAppointments.find((appointment) =>
     !['canceled', 'completed', 'no_show'].includes(appointment.status)
     && new Date(appointment.starts_at).getTime() >= Date.now(),
+  )
+  const clinicRoles = roleCatalog.filter((role) => role.scope === 'clinic')
+  const branchDepartmentOptions = departments.filter(
+    (department) => !roomBranchId || String(department.branch_id) === roomBranchId,
   )
 
   return (
@@ -665,6 +752,96 @@ export default function ClinicalWorkspacePage() {
           <FieldLabel label="Заключение"><input value={recordConclusion} onChange={(event) => setRecordConclusion(event.target.value)} placeholder="Рекомендации" className={inputClass} /></FieldLabel>
         </div>
         <Button className="mt-4" onClick={() => void handleCreateMedicalRecord()} disabled={!clinicId}>Добавить в медкарту</Button>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+              <BriefcaseMedical className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-950">Назначение сотрудника</h3>
+              <p className="text-sm text-slate-500">Добавьте врача, администратора или ресепшн по ИИН</p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <FieldLabel label="ИИН сотрудника">
+              <input
+                value={employeeIin}
+                onChange={(event) => setEmployeeIin(event.target.value.replace(/\D/g, '').slice(0, 12))}
+                placeholder="12 цифр"
+                className={inputClass}
+              />
+            </FieldLabel>
+            <FieldLabel label="Роль">
+              <select value={employeeRoleCode} onChange={(event) => setEmployeeRoleCode(event.target.value)} className={inputClass}>
+                <option value="">Выберите роль</option>
+                {clinicRoles.map((role) => (
+                  <option key={role.code} value={role.code}>
+                    {role.title}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Отдел">
+              <input value={employeeDepartment} onChange={(event) => setEmployeeDepartment(event.target.value)} placeholder="Терапия" className={inputClass} />
+            </FieldLabel>
+            <FieldLabel label="Должность">
+              <input value={employeePosition} onChange={(event) => setEmployeePosition(event.target.value)} placeholder="Врач-терапевт" className={inputClass} />
+            </FieldLabel>
+          </div>
+          <Button className="mt-4" onClick={() => void handleAssignEmployee()} disabled={!clinicId}>Назначить сотрудника</Button>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <DoorOpen className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-950">Кабинеты клиники</h3>
+              <p className="text-sm text-slate-500">Создание кабинетов для расписания и приёмов</p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <FieldLabel label="Филиал">
+              <select value={roomBranchId} onChange={(event) => setRoomBranchId(event.target.value)} className={inputClass}>
+                <option value="">Выберите филиал</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={String(branch.id)}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Отдел (опц.)">
+              <select value={roomDepartmentId} onChange={(event) => setRoomDepartmentId(event.target.value)} className={inputClass}>
+                <option value="">Без отдела</option>
+                {branchDepartmentOptions.map((department) => (
+                  <option key={department.id} value={String(department.id)}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Номер кабинета">
+              <input value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)} placeholder="101" className={inputClass} />
+            </FieldLabel>
+            <FieldLabel label="Название (опц.)">
+              <input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="Процедурный" className={inputClass} />
+            </FieldLabel>
+          </div>
+          <Button className="mt-4" onClick={() => void handleCreateRoom()} disabled={!clinicId}>Добавить кабинет</Button>
+          <div className="mt-4 max-h-40 space-y-2 overflow-y-auto pr-1">
+            {rooms.slice(0, 12).map((room) => (
+              <p key={room.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                #{room.id} Каб. {room.number}{room.title ? ` · ${room.title}` : ''}
+              </p>
+            ))}
+            {rooms.length === 0 ? <p className="text-sm text-slate-500">Кабинеты пока не добавлены.</p> : null}
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-4">

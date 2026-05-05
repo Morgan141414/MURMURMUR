@@ -62,6 +62,57 @@ export interface ClinicMembership {
   is_active: boolean
 }
 
+export interface RoleDefinition {
+  id: number
+  code: string
+  scope: string
+  title: string
+  permissions: string
+  is_system: boolean
+}
+
+export interface ClinicEmployeeAssignPayload {
+  iin: string
+  role_code: string
+  department?: string | null
+  position?: string | null
+}
+
+export interface ClinicBranch {
+  id: number
+  clinic_id: number
+  name: string
+  address?: string | null
+  phone?: string | null
+  is_active: boolean
+}
+
+export interface ClinicDepartment {
+  id: number
+  clinic_id: number
+  branch_id: number
+  name: string
+  description?: string | null
+  is_active: boolean
+}
+
+export interface ClinicRoomCreatePayload {
+  branch_id: number
+  department_id?: number | null
+  number: string
+  title?: string | null
+}
+
+export interface ClinicRoom {
+  id: number
+  clinic_id: number
+  branch_id: number
+  department_id?: number | null
+  number: string
+  title?: string | null
+  is_active: boolean
+}
+
 export interface ScheduleSlotCreatePayload {
   doctor_membership_id: number
   starts_at: string
@@ -135,6 +186,30 @@ export function listAppointments(clinicId: number) {
 
 export function listClinicEmployees(clinicId: number) {
   return api.get<ClinicMembership[]>(`/clinics/${clinicId}/employees`)
+}
+
+export function listRoleCatalog() {
+  return api.get<RoleDefinition[]>('/clinics/roles/catalog')
+}
+
+export function assignClinicEmployee(clinicId: number, payload: ClinicEmployeeAssignPayload) {
+  return api.post<ClinicMembership>(`/clinics/${clinicId}/employees`, payload)
+}
+
+export function listClinicBranches(clinicId: number) {
+  return api.get<ClinicBranch[]>(`/clinics/${clinicId}/branches`)
+}
+
+export function listClinicDepartments(clinicId: number) {
+  return api.get<ClinicDepartment[]>(`/clinics/${clinicId}/departments`)
+}
+
+export function listClinicRooms(clinicId: number) {
+  return api.get<ClinicRoom[]>(`/clinics/${clinicId}/rooms`)
+}
+
+export function createClinicRoom(clinicId: number, payload: ClinicRoomCreatePayload) {
+  return api.post<ClinicRoom>(`/clinics/${clinicId}/rooms`, payload)
 }
 
 export function createScheduleSlot(clinicId: number, payload: ScheduleSlotCreatePayload) {
