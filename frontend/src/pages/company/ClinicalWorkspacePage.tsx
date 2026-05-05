@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { BriefcaseMedical, CalendarClock, CalendarCheck2, ClipboardPlus, DoorOpen, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
+import { useAuthStore } from '@/stores/authStore'
 import {
   assignClinicEmployee,
   createClinicRoom,
@@ -52,6 +53,7 @@ function toDateTimeLocalValue(date: Date) {
 
 export default function ClinicalWorkspacePage() {
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
+  const currentUserId = useAuthStore((s) => s.userId)
   const clinicId = useMemo(() => {
     if (!activeOrgId) return null
     const parsed = Number(activeOrgId)
@@ -105,6 +107,7 @@ export default function ClinicalWorkspacePage() {
   const [appointmentDoctorFilter, setAppointmentDoctorFilter] = useState<'all' | string>('all')
   const [appointmentRoomFilter, setAppointmentRoomFilter] = useState<'all' | string>('all')
   const [appointmentDateFilter, setAppointmentDateFilter] = useState('')
+  const [appointmentPreset, setAppointmentPreset] = useState<'all' | 'my' | 'today' | 'overdue'>('all')
   const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null)
   const [editAppointmentDoctorId, setEditAppointmentDoctorId] = useState('')
   const [editAppointmentRoomId, setEditAppointmentRoomId] = useState('')
@@ -475,14 +478,34 @@ export default function ClinicalWorkspacePage() {
   const branchDepartmentOptions = departments.filter(
     (department) => !roomBranchId || String(department.branch_id) === roomBranchId,
   )
+  function getAppointmentSla(appointment: Appointment) {
+    const startsAtMs = new Date(appointment.starts_at).getTime()
+    const nowMs = Date.now()
+    if (!isActiveAppointmentStatus(appointment.status)) return null
+    if (startsAtMs < nowMs) return { label: 'Просрочен', className: 'bg-rose-100 text-rose-700' }
+    if (startsAtMs - nowMs <= 30 * 60 * 1000) return { label: 'Скоро', className: 'bg-amber-100 text-amber-700' }
+    return { label: 'План', className: 'bg-emerald-100 text-emerald-700' }
+  }
   const appointmentStatusOptions = Array.from(new Set(appointments.map((appointment) => appointment.status))).sort()
+  const currentAccountId = currentUserId ? Number(currentUserId) : null
+  const isActiveAppointmentStatus = (status: string) => !['canceled', 'completed', 'no_show'].includes(status)
   const filteredAppointments = appointments
     .filter((appointment) => {
+      const startsAt = new Date(appointment.starts_at)
+      const now = Date.now()
+      const isOverdue = startsAt.getTime() < now && isActiveAppointmentStatus(appointment.status)
+      const isToday = startsAt.toDateString() === new Date().toDateString()
+      const appointmentDoctor = employees.find((employee) => employee.id === appointment.doctor_membership_id)
+      const isMine = currentAccountId != null && appointmentDoctor?.account_id === currentAccountId
+
+      if (appointmentPreset === 'my' && !isMine) return false
+      if (appointmentPreset === 'today' && !isToday) return false
+      if (appointmentPreset === 'overdue' && !isOverdue) return false
+
       if (appointmentStatusFilter !== 'all' && appointment.status !== appointmentStatusFilter) return false
       if (appointmentDoctorFilter !== 'all' && String(appointment.doctor_membership_id ?? '') !== appointmentDoctorFilter) return false
       if (appointmentRoomFilter !== 'all' && String(appointment.room_id ?? '') !== appointmentRoomFilter) return false
       if (appointmentDateFilter) {
-        const startsAt = new Date(appointment.starts_at)
         const localDate = new Date(startsAt.getTime() - startsAt.getTimezoneOffset() * 60000)
           .toISOString()
           .slice(0, 10)
@@ -933,6 +956,27 @@ export default function ClinicalWorkspacePage() {
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-950"><CalendarCheck2 className="h-5 w-5 text-blue-700" /> Записи</h4>
           <div className="mb-3 grid gap-2">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: 'Все' },
+                { key: 'my', label: 'Мои' },
+                { key: 'today', label: 'Сегодня' },
+                { key: 'overdue', label: 'Просроченные' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setAppointmentPreset(item.key as 'all' | 'my' | 'today' | 'overdue')}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    appointmentPreset === item.key
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <select value={appointmentStatusFilter} onChange={(event) => setAppointmentStatusFilter(event.target.value)} className={inputClass}>
                 <option value="all">Все статусы</option>
@@ -967,6 +1011,17 @@ export default function ClinicalWorkspacePage() {
           <div className="space-y-2 text-sm">
             {filteredAppointments.slice(0, 14).map((appointment) => (
               <div key={appointment.id} className="rounded-2xl bg-slate-50 px-3 py-3 text-slate-700">
+                {(() => {
+                  const sla = getAppointmentSla(appointment)
+                  const appointmentDoctor = employees.find((employee) => employee.id === appointment.doctor_membership_id)
+                  const mine = currentAccountId != null && appointmentDoctor?.account_id === currentAccountId
+                  return (
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      {sla ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sla.className}`}>{sla.label}</span> : null}
+                      {mine ? <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-700">Моя запись</span> : null}
+                    </div>
+                  )
+                })()}
                 <button
                   type="button"
                   onClick={() => handleAppointmentSelect(appointment)}
