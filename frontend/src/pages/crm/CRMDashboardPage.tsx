@@ -7,6 +7,11 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { SalesFunnelChart } from '@/components/crm/SalesFunnelChart'
 import { cn } from '@/lib/utils'
 
+const CHART_GRID = 'rgba(125, 151, 157, 0.22)'
+const CHART_LEADS = '#22A6F2'
+const CHART_DEALS = '#14B8A6'
+const CHART_WON = '#F59E0B'
+
 export default function CRMDashboardPage() {
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
   const [dashboard, setDashboard] = useState<CRMDashboard | null>(null)
@@ -64,11 +69,11 @@ export default function CRMDashboardPage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Дашборд</h1>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg hover:bg-accent transition-colors">
+              <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent">
                 <RefreshCw className="h-4 w-4" />
                 Обновить
               </button>
-              <button className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-lg hover:bg-accent transition-colors">
+              <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent">
                 <Edit className="h-4 w-4" />
                 Редактировать
               </button>
@@ -77,11 +82,11 @@ export default function CRMDashboardPage() {
 
           {/* Filters */}
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-card hover:bg-accent transition-colors">
+            <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent">
               <span>Последние 30 дней</span>
               <ChevronDown className="h-4 w-4" />
             </button>
-            <button className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-card hover:bg-accent transition-colors">
+            <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent">
               <span>Менеджер по продажам</span>
               <ChevronDown className="h-4 w-4" />
             </button>
@@ -106,7 +111,7 @@ export default function CRMDashboardPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales Trend */}
-            <div className="bg-card border rounded-lg p-6">
+            <div className="rounded-lg border border-border bg-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-semibold mb-1">Тренд продаж</h3>
                 <p className="text-xs text-muted-foreground">Ежедневная динамика лидов, сделок и побед</p>
@@ -114,14 +119,14 @@ export default function CRMDashboardPage() {
               {dashboard?.sales_trend && dashboard.sales_trend.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={dashboard.sales_trend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Line type="monotone" dataKey="leads" stroke="#3b82f6" strokeWidth={2} name="Лиды" />
-                    <Line type="monotone" dataKey="deals" stroke="#10b981" strokeWidth={2} name="Сделки" />
-                    <Line type="monotone" dataKey="wonDeals" stroke="#f59e0b" strokeWidth={2} name="Выигранные" />
+                    <Line type="monotone" dataKey="leads" stroke={CHART_LEADS} strokeWidth={2} name="Лиды" />
+                    <Line type="monotone" dataKey="deals" stroke={CHART_DEALS} strokeWidth={2} name="Сделки" />
+                    <Line type="monotone" dataKey="wonDeals" stroke={CHART_WON} strokeWidth={2} name="Выигранные" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
@@ -132,7 +137,7 @@ export default function CRMDashboardPage() {
             </div>
 
             {/* Activity by Date */}
-            <div className="bg-card border rounded-lg p-6">
+            <div className="rounded-lg border border-border bg-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-semibold mb-1">Активность по датам</h3>
                 <p className="text-xs text-muted-foreground">Количество лидов и сделок по датам</p>
@@ -140,13 +145,13 @@ export default function CRMDashboardPage() {
               {dashboard?.sales_trend && dashboard.sales_trend.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={dashboard.sales_trend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar dataKey="leads" fill="#60a5fa" name="Лиды" />
-                    <Bar dataKey="deals" fill="#fbbf24" name="Сделки" />
+                    <Bar dataKey="leads" fill={CHART_LEADS} name="Лиды" />
+                    <Bar dataKey="deals" fill={CHART_WON} name="Сделки" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -160,7 +165,7 @@ export default function CRMDashboardPage() {
           {/* Bottom Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Summary Stats */}
-            <div className="bg-card border rounded-lg p-6">
+            <div className="rounded-lg border border-border bg-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-semibold mb-1">Конверсия</h3>
                 <p className="text-xs text-muted-foreground">Общая статистика</p>
@@ -190,7 +195,7 @@ export default function CRMDashboardPage() {
             </div>
 
             {/* Deals by Stage */}
-            <div className="bg-card border rounded-lg p-6">
+            <div className="rounded-lg border border-border bg-card p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-semibold mb-1">Сделки по этапам</h3>
                 <p className="text-xs text-muted-foreground">Распределение по воронке продаж</p>

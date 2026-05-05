@@ -859,9 +859,9 @@
   /* Welcome banner */
   .welcome-banner {
     background: linear-gradient(135deg,
-      color-mix(in srgb, var(--primary) 6%, var(--card)) 0%,
+      color-mix(in srgb, var(--primary) 10%, var(--card)) 0%,
       var(--card) 50%,
-      color-mix(in srgb, var(--success) 4%, var(--card)) 100%
+      color-mix(in srgb, var(--info) 6%, var(--card)) 100%
     );
     border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--border));
     border-radius: var(--radius-xl);
@@ -933,11 +933,11 @@
   .icon-container-md { width: 40px; height: 40px; }
   .icon-container-lg { width: 48px; height: 48px; }
 
-  .icon-blue { background: rgba(59, 130, 246, 0.12); color: #60A5FA; }
+  .icon-blue { background: rgba(20, 184, 166, 0.14); color: #2DD4BF; }
   .icon-green { background: rgba(16, 185, 129, 0.12); color: #34D399; }
-  .icon-amber { background: rgba(245, 158, 11, 0.12); color: #FBBF24; }
+  .icon-amber { background: rgba(14, 165, 146, 0.14); color: #5EEAD4; }
   .icon-red { background: rgba(239, 68, 68, 0.12); color: #F87171; }
-  .icon-violet { background: rgba(139, 92, 246, 0.12); color: #A78BFA; }
+  .icon-violet { background: rgba(34, 166, 242, 0.14); color: #67C6FF; }
   .icon-pink { background: rgba(236, 72, 153, 0.12); color: #F472B6; }
   .icon-cyan { background: rgba(6, 182, 212, 0.12); color: #22D3EE; }
   .icon-orange { background: rgba(249, 115, 22, 0.12); color: #FB923C; }
