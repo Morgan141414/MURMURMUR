@@ -22,6 +22,8 @@ from saphena.modules.enums import (
     ClinicStatus,
     LeadStatus,
     ScheduleSlotStatus,
+    SupportPriority,
+    SupportThreadStatus,
     SupportTicketStatus,
 )
 from saphena.modules.permissions import RoleCode
@@ -310,10 +312,42 @@ class Notification(Base, TimestampMixin):
     read_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
 
 
+class SupportThread(Base, TimestampMixin):
+    __tablename__ = "support_threads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requester_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
+    clinic_id: Mapped[int | None] = mapped_column(ForeignKey("clinics.id"), default=None, index=True)
+    subject: Mapped[str] = mapped_column(String(160))
+    request_type: Mapped[str] = mapped_column(String(64), default="general")
+    status: Mapped[SupportThreadStatus] = mapped_column(
+        Enum(SupportThreadStatus), default=SupportThreadStatus.open
+    )
+    priority: Mapped[SupportPriority] = mapped_column(
+        Enum(SupportPriority), default=SupportPriority.normal
+    )
+    assigned_to_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), default=None, index=True
+    )
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
+
+
+class SupportMessage(Base, TimestampMixin):
+    __tablename__ = "support_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("support_threads.id"), index=True)
+    author_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+
+
 class SupportTicket(Base, TimestampMixin):
     __tablename__ = "support_tickets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    support_thread_id: Mapped[int | None] = mapped_column(
+        ForeignKey("support_threads.id"), default=None, index=True
+    )
     requester_account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
     clinic_id: Mapped[int | None] = mapped_column(ForeignKey("clinics.id"), default=None)
     topic: Mapped[str] = mapped_column(String(120))

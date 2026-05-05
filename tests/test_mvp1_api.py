@@ -509,3 +509,78 @@ def test_invalid_iin_rejected() -> None:
         },
     )
     assert response.status_code == 422, response.text
+
+
+def test_support_threads_permissions_and_updates() -> None:
+    user_iin = build_valid_iin("92010100011")
+    support_iin = build_valid_iin("92010100012")
+    outsider_iin = build_valid_iin("92010100013")
+
+    register_user(user_iin)
+    user_token = login(user_iin)
+    support = register_user(support_iin)
+    outsider = register_user(outsider_iin)
+    outsider_token = login(outsider_iin)
+    make_superuser(support["id"])
+    support_token = login(support_iin)
+
+    create_response = client.post(
+        "/api/v1/support/threads",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "subject": "Login issue",
+            "body": "I cannot log in from mobile app",
+            "priority": "high",
+            "request_type": "general",
+        },
+    )
+    assert create_response.status_code == 201, create_response.text
+    thread_id = create_response.json()["id"]
+
+    own_list = client.get("/api/v1/support/threads", headers={"Authorization": f"Bearer {user_token}"})
+    assert own_list.status_code == 200, own_list.text
+    assert any(item["id"] == thread_id for item in own_list.json())
+
+    denied_detail = client.get(
+        f"/api/v1/support/threads/{thread_id}",
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+    assert denied_detail.status_code == 403, denied_detail.text
+
+    manager_detail = client.get(
+        f"/api/v1/support/threads/{thread_id}",
+        headers={"Authorization": f"Bearer {support_token}"},
+    )
+    assert manager_detail.status_code == 200, manager_detail.text
+    assert len(manager_detail.json()["messages"]) == 1
+
+    reply_response = client.post(
+        f"/api/v1/support/threads/{thread_id}/messages",
+        headers={"Authorization": f"Bearer {support_token}"},
+        json={"body": "Please try to reset your password."},
+    )
+    assert reply_response.status_code == 201, reply_response.text
+
+    user_view = client.get(
+        f"/api/v1/support/threads/{thread_id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert user_view.status_code == 200, user_view.text
+    assert len(user_view.json()["messages"]) == 2
+
+    update_response = client.patch(
+        f"/api/v1/support/threads/{thread_id}",
+        headers={"Authorization": f"Bearer {support_token}"},
+        json={"status": "closed", "priority": "critical"},
+    )
+    assert update_response.status_code == 200, update_response.text
+    assert update_response.json()["status"] == "closed"
+    assert update_response.json()["priority"] == "critical"
+
+    audit_response = client.get(
+        "/api/v1/admin/audit", headers={"Authorization": f"Bearer {support_token}"}
+    )
+    assert audit_response.status_code == 200, audit_response.text
+    actions = {item["action"] for item in audit_response.json()}
+    assert "support_thread.create" in actions
+    assert "support_message.create" in actions

@@ -47,6 +47,20 @@ class SupportTicketStatus(StrEnum):
     closed = "closed"
 
 
+class SupportThreadStatus(StrEnum):
+    open = "open"
+    in_progress = "in_progress"
+    answered = "answered"
+    closed = "closed"
+
+
+class SupportPriority(StrEnum):
+    low = "low"
+    normal = "normal"
+    high = "high"
+    critical = "critical"
+
+
 class LeadStatus(StrEnum):
     new = "new"
     contacted = "contacted"

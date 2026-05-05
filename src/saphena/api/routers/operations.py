@@ -34,12 +34,23 @@ from saphena.api.schemas import (
     PatientCreate,
     PatientRead,
     ScheduleSlotRead,
+    SupportMessageCreate,
+    SupportMessageRead,
     SupportTicketCreate,
     SupportTicketRead,
     SupportTicketUpdate,
+    SupportThreadCreate,
+    SupportThreadDetailRead,
+    SupportThreadRead,
+    SupportThreadUpdate,
 )
-from saphena.core.security import hash_password
-from saphena.modules.enums import AppointmentStatus, ScheduleSlotStatus
+from saphena.core.security import hash_password, utcnow
+from saphena.modules.enums import (
+    AppointmentStatus,
+    ScheduleSlotStatus,
+    SupportTicketStatus,
+    SupportThreadStatus,
+)
 from saphena.modules.models import (
     Account,
     Appointment,
@@ -57,7 +68,9 @@ from saphena.modules.models import (
     PatientProfile,
     Person,
     ScheduleSlot,
+    SupportMessage,
     SupportTicket,
+    SupportThread,
 )
 from saphena.modules.permissions import PermissionCode
 from saphena.services.access import has_permission
@@ -1368,17 +1381,270 @@ def update_lead(
     return item
 
 
+def _is_support_manager(db: DbSession, current_account: CurrentAccount) -> bool:
+    return current_account.is_superuser or has_permission(
+        db, current_account, PermissionCode.support_manage
+    )
+
+
+def _thread_visible_to_user(db: DbSession, thread: SupportThread, current_account: CurrentAccount) -> bool:
+    if _is_support_manager(db, current_account):
+        return True
+    return thread.requester_account_id == current_account.id
+
+
+def _sync_legacy_tickets_to_threads(db: DbSession) -> None:
+    legacy_without_thread = db.scalars(
+        select(SupportTicket).where(SupportTicket.support_thread_id.is_(None))
+    ).all()
+    changed = False
+    for ticket in legacy_without_thread:
+        thread = SupportThread(
+            requester_account_id=ticket.requester_account_id,
+            clinic_id=ticket.clinic_id,
+            subject=ticket.topic,
+            status=SupportThreadStatus(ticket.status.value)
+            if ticket.status.value in {item.value for item in SupportThreadStatus}
+            else SupportThreadStatus.open,
+            last_message_at=ticket.created_at,
+        )
+        db.add(thread)
+        db.flush()
+        first_message = SupportMessage(
+            thread_id=thread.id,
+            author_account_id=ticket.requester_account_id,
+            body=ticket.message,
+        )
+        db.add(first_message)
+        ticket.support_thread_id = thread.id
+        db.add(ticket)
+        changed = True
+    if changed:
+        db.commit()
+
+
+def _serialize_thread_detail(db: DbSession, thread: SupportThread) -> SupportThreadDetailRead:
+    messages = list(
+        db.scalars(
+            select(SupportMessage)
+            .where(SupportMessage.thread_id == thread.id)
+            .order_by(SupportMessage.created_at.asc())
+        ).all()
+    )
+    return SupportThreadDetailRead.model_validate(
+        {
+            **SupportThreadRead.model_validate(thread).model_dump(),
+            "messages": [SupportMessageRead.model_validate(item).model_dump() for item in messages],
+        }
+    )
+
+
+@router.get("/support/threads", response_model=list[SupportThreadRead])
+def list_support_threads(db: DbSession, current_account: CurrentAccount) -> list[SupportThread]:
+    _sync_legacy_tickets_to_threads(db)
+    stmt = select(SupportThread).order_by(SupportThread.last_message_at.desc(), SupportThread.id.desc())
+    if not _is_support_manager(db, current_account):
+        stmt = stmt.where(SupportThread.requester_account_id == current_account.id)
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/support/threads",
+    response_model=SupportThreadRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_support_thread(
+    payload: SupportThreadCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> SupportThread:
+    item = SupportThread(
+        requester_account_id=current_account.id,
+        clinic_id=payload.clinic_id,
+        subject=payload.subject,
+        request_type=payload.request_type,
+        status=SupportThreadStatus.open,
+        priority=payload.priority,
+        last_message_at=utcnow(),
+    )
+    db.add(item)
+    db.flush()
+    db.add(
+        SupportMessage(
+            thread_id=item.id,
+            author_account_id=current_account.id,
+            body=payload.body,
+        )
+    )
+    legacy_ticket = SupportTicket(
+        support_thread_id=item.id,
+        requester_account_id=current_account.id,
+        clinic_id=payload.clinic_id,
+        topic=payload.subject,
+        message=payload.body,
+    )
+    db.add(legacy_ticket)
+    db.flush()
+    item.last_message_at = legacy_ticket.created_at
+    recipients = db.scalars(
+        select(ClinicMembership.account_id).where(
+            ClinicMembership.clinic_id == payload.clinic_id,
+            ClinicMembership.is_active.is_(True),
+        )
+    ).all() if payload.clinic_id is not None else []
+    for recipient_account_id in recipients:
+        if recipient_account_id != current_account.id:
+            create_notification(
+                db,
+                account_id=recipient_account_id,
+                title="New support thread",
+                body=f"Thread #{item.id}: {payload.subject}",
+            )
+    audit(
+        db,
+        action="support_thread.create",
+        entity_type="support_thread",
+        actor=current_account,
+        clinic_id=payload.clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/support/threads/{thread_id}", response_model=SupportThreadDetailRead)
+def get_support_thread(
+    thread_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> SupportThreadDetailRead:
+    _sync_legacy_tickets_to_threads(db)
+    item = db.get(SupportThread, thread_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    if not _thread_visible_to_user(db, item, current_account):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing support rights")
+    return _serialize_thread_detail(db, item)
+
+
+@router.post(
+    "/support/threads/{thread_id}/messages",
+    response_model=SupportMessageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_support_thread_message(
+    thread_id: int,
+    payload: SupportMessageCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> SupportMessage:
+    item = db.get(SupportThread, thread_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    if not _thread_visible_to_user(db, item, current_account):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing support rights")
+    if item.status == SupportThreadStatus.closed and not _is_support_manager(db, current_account):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Thread is closed")
+    message = SupportMessage(
+        thread_id=item.id,
+        author_account_id=current_account.id,
+        body=payload.body,
+    )
+    db.add(message)
+    db.flush()
+    item.last_message_at = message.created_at
+    if _is_support_manager(db, current_account):
+        if item.status != SupportThreadStatus.closed:
+            item.status = SupportThreadStatus.answered
+        create_notification(
+            db,
+            account_id=item.requester_account_id,
+            title="Support replied",
+            body=f"Thread #{item.id} has a new reply",
+        )
+    else:
+        if item.status == SupportThreadStatus.answered:
+            item.status = SupportThreadStatus.in_progress
+        if item.assigned_to_account_id is not None and item.assigned_to_account_id != current_account.id:
+            create_notification(
+                db,
+                account_id=item.assigned_to_account_id,
+                title="New message in assigned support thread",
+                body=f"Thread #{item.id} has a new user message",
+            )
+    db.add(item)
+    audit(
+        db,
+        action="support_message.create",
+        entity_type="support_message",
+        actor=current_account,
+        clinic_id=item.clinic_id,
+        entity_id=message.id,
+    )
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+@router.patch("/support/threads/{thread_id}", response_model=SupportThreadRead)
+def update_support_thread(
+    thread_id: int,
+    payload: SupportThreadUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> SupportThread:
+    if not _is_support_manager(db, current_account):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing support rights")
+    item = db.get(SupportThread, thread_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    previous_status = item.status
+    previous_assignee = item.assigned_to_account_id
+    if payload.status is not None:
+        item.status = payload.status
+    if payload.priority is not None:
+        item.priority = payload.priority
+    if payload.assigned_to_account_id is not None:
+        item.assigned_to_account_id = payload.assigned_to_account_id
+    if previous_assignee != item.assigned_to_account_id:
+        audit(
+            db,
+            action="support_thread.assign",
+            entity_type="support_thread",
+            actor=current_account,
+            clinic_id=item.clinic_id,
+            entity_id=item.id,
+            details=f"assigned_to={item.assigned_to_account_id}",
+        )
+    if previous_status != item.status:
+        create_notification(
+            db,
+            account_id=item.requester_account_id,
+            title="Support thread status updated",
+            body=f"Thread #{item.id} status changed to {item.status.value}",
+        )
+        audit(
+            db,
+            action="support_thread.status_update",
+            entity_type="support_thread",
+            actor=current_account,
+            clinic_id=item.clinic_id,
+            entity_id=item.id,
+            details=f"status={item.status.value}",
+        )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 @router.get("/support/tickets", response_model=list[SupportTicketRead])
 def list_support_tickets(db: DbSession, current_account: CurrentAccount) -> list[SupportTicket]:
-    if current_account.is_superuser or has_permission(
-        db, current_account, PermissionCode.support_manage
-    ):
-        return list(db.scalars(select(SupportTicket).order_by(SupportTicket.id.desc())).all())
-    stmt = (
-        select(SupportTicket)
-        .where(SupportTicket.requester_account_id == current_account.id)
-        .order_by(SupportTicket.id.desc())
-    )
+    _sync_legacy_tickets_to_threads(db)
+    stmt = select(SupportTicket).order_by(SupportTicket.id.desc())
+    if not _is_support_manager(db, current_account):
+        stmt = stmt.where(SupportTicket.requester_account_id == current_account.id)
     return list(db.scalars(stmt).all())
 
 
@@ -1390,39 +1656,19 @@ def list_support_tickets(db: DbSession, current_account: CurrentAccount) -> list
 def create_support_ticket(
     payload: SupportTicketCreate, db: DbSession, current_account: CurrentAccount
 ) -> SupportTicket:
-    item = SupportTicket(
-        requester_account_id=current_account.id,
-        clinic_id=payload.clinic_id,
-        topic=payload.topic,
-        message=payload.message,
-    )
-    db.add(item)
-    db.flush()
-    if payload.clinic_id is not None:
-        recipients = db.scalars(
-            select(ClinicMembership.account_id).where(
-                ClinicMembership.clinic_id == payload.clinic_id,
-                ClinicMembership.is_active.is_(True),
-            )
-        ).all()
-        for recipient_account_id in recipients:
-            if recipient_account_id != current_account.id:
-                create_notification(
-                    db,
-                    account_id=recipient_account_id,
-                    title="New support ticket",
-                    body=f"Ticket #{item.id}: {payload.topic}",
-                )
-    audit(
+    thread = create_support_thread(
+        SupportThreadCreate(
+            clinic_id=payload.clinic_id,
+            subject=payload.topic,
+            body=payload.message,
+            request_type="general",
+        ),
         db,
-        action="support_ticket.create",
-        entity_type="support_ticket",
-        actor=current_account,
-        clinic_id=payload.clinic_id,
-        entity_id=item.id,
+        current_account,
     )
-    db.commit()
-    db.refresh(item)
+    item = db.scalar(select(SupportTicket).where(SupportTicket.support_thread_id == thread.id))
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Ticket sync failed")
     return item
 
 
@@ -1433,24 +1679,31 @@ def update_support_ticket(
     db: DbSession,
     current_account: CurrentAccount,
 ) -> SupportTicket:
+    _sync_legacy_tickets_to_threads(db)
     item = db.get(SupportTicket, ticket_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    can_moderate = current_account.is_superuser or has_permission(
-        db, current_account, PermissionCode.support_manage
-    )
+    can_moderate = _is_support_manager(db, current_account)
     if not can_moderate and item.requester_account_id != current_account.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing support rights")
-    item.status = payload.status
+    if item.support_thread_id is not None and can_moderate:
+        thread_status = (
+            SupportThreadStatus.in_progress
+            if payload.status == SupportTicketStatus.in_progress
+            else SupportThreadStatus.closed
+            if payload.status in {SupportTicketStatus.closed, SupportTicketStatus.resolved}
+            else SupportThreadStatus.answered
+        )
+        update_support_thread(
+            item.support_thread_id,
+            SupportThreadUpdate(status=thread_status),
+            db,
+            current_account,
+        )
     if payload.message:
         item.message = payload.message
+    item.status = payload.status
     db.add(item)
-    create_notification(
-        db,
-        account_id=item.requester_account_id,
-        title="Support ticket updated",
-        body=f"Ticket #{item.id} status changed to {item.status.value}",
-    )
     audit(
         db,
         action="support_ticket.update",

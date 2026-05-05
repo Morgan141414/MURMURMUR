@@ -8,6 +8,8 @@ from saphena.modules.enums import (
     ClinicStatus,
     LeadStatus,
     ScheduleSlotStatus,
+    SupportPriority,
+    SupportThreadStatus,
     SupportTicketStatus,
 )
 from saphena.modules.permissions import RoleCode
@@ -488,6 +490,54 @@ class LeadUpdate(BaseModel):
     note: str | None = None
 
 
+class SupportThreadCreate(BaseModel):
+    clinic_id: int | None = None
+    subject: str = Field(min_length=1, max_length=160)
+    body: str = Field(min_length=1)
+    request_type: str = Field(default="general", min_length=1, max_length=64)
+    priority: SupportPriority = SupportPriority.normal
+
+
+class SupportThreadUpdate(BaseModel):
+    status: SupportThreadStatus | None = None
+    priority: SupportPriority | None = None
+    assigned_to_account_id: int | None = None
+
+
+class SupportMessageCreate(BaseModel):
+    body: str = Field(min_length=1)
+
+
+class SupportMessageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    thread_id: int
+    author_account_id: int
+    body: str
+    created_at: datetime
+
+
+class SupportThreadRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    requester_account_id: int
+    clinic_id: int | None = None
+    subject: str
+    request_type: str
+    status: SupportThreadStatus
+    priority: SupportPriority
+    assigned_to_account_id: int | None = None
+    last_message_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SupportThreadDetailRead(SupportThreadRead):
+    messages: list[SupportMessageRead]
+
+
 class SupportTicketCreate(BaseModel):
     clinic_id: int | None = None
     topic: str = Field(min_length=1, max_length=120)
@@ -499,6 +549,7 @@ class SupportTicketRead(BaseModel):
 
     id: int
     requester_account_id: int
+    support_thread_id: int | None = None
     clinic_id: int | None = None
     topic: str
     message: str
