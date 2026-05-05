@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from saphena.api.routers import admin, auth, bootstrap, clinics, health, operations
 from saphena.core.config import get_settings
@@ -30,19 +29,25 @@ def create_app() -> FastAPI:
     app.include_router(operations.router, prefix="/api/v1")
     app.include_router(bootstrap.router, prefix="/api/v1")
 
-    assets_dir = WEB_DIR / "assets"
     if WEB_DIR.exists():
-        if assets_dir.exists():
-            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-
         @app.get("/", include_in_schema=False)
         def index() -> FileResponse:
             return FileResponse(WEB_DIR / "index.html")
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa_fallback(full_path: str) -> FileResponse:
-            if full_path.startswith(("api/", "assets/")):
+            if full_path.startswith("api/"):
                 raise HTTPException(status_code=404, detail="Not found")
+
+            candidate = (WEB_DIR / full_path).resolve()
+            try:
+                candidate.relative_to(WEB_DIR.resolve())
+            except ValueError:
+                raise HTTPException(status_code=404, detail="Not found") from None
+
+            if candidate.is_file():
+                return FileResponse(candidate)
+
             return FileResponse(WEB_DIR / "index.html")
 
     return app

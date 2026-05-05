@@ -1,0 +1,1 @@
+import{a5 as i}from"./index-D6GqCkIe.js";function s(t,r){return i.get(`/orgs/${t}/audit`,{params:r})}function o(t,r){return i.get(`/orgs/${t}/audit`,{params:{...r,export:"csv"}})}function g(t,r){return i.get(`/orgs/${t}/audit/${r}`)}function d(t,r,a,u=200,e=0){return i.get(`/orgs/${t}/audit/entity/${r}/${a}`,{params:{limit:u,offset:e}})}export{s as a,o as e,g,d as l};
