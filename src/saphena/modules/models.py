@@ -100,6 +100,61 @@ class Clinic(Base, TimestampMixin):
     status: Mapped[ClinicStatus] = mapped_column(Enum(ClinicStatus), default=ClinicStatus.active)
 
 
+class ClinicBranch(Base, TimestampMixin):
+    __tablename__ = "clinic_branches"
+    __table_args__ = (UniqueConstraint("clinic_id", "name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    address: Mapped[str] = mapped_column(String(255))
+    contacts: Mapped[str | None] = mapped_column(Text, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ClinicDepartment(Base, TimestampMixin):
+    __tablename__ = "clinic_departments"
+    __table_args__ = (UniqueConstraint("clinic_id", "branch_id", "name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("clinic_branches.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ClinicRoom(Base, TimestampMixin):
+    __tablename__ = "clinic_rooms"
+    __table_args__ = (UniqueConstraint("clinic_id", "branch_id", "number"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("clinic_branches.id"), index=True)
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clinic_departments.id"), default=None, index=True
+    )
+    number: Mapped[str] = mapped_column(String(80))
+    title: Mapped[str | None] = mapped_column(String(255), default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ClinicService(Base, TimestampMixin):
+    __tablename__ = "clinic_services"
+    __table_args__ = (UniqueConstraint("clinic_id", "code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clinic_departments.id"), default=None, index=True
+    )
+    code: Mapped[str] = mapped_column(String(80))
+    title: Mapped[str] = mapped_column(String(255))
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    price: Mapped[int | None] = mapped_column(Integer, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class ClinicApplication(Base, TimestampMixin):
     __tablename__ = "clinic_applications"
 
@@ -170,6 +225,8 @@ class Appointment(Base, TimestampMixin):
     doctor_membership_id: Mapped[int | None] = mapped_column(
         ForeignKey("clinic_memberships.id"), default=None
     )
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_rooms.id"), default=None)
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_services.id"), default=None)
     starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[AppointmentStatus] = mapped_column(
@@ -186,6 +243,8 @@ class ScheduleSlot(Base, TimestampMixin):
     doctor_membership_id: Mapped[int] = mapped_column(
         ForeignKey("clinic_memberships.id"), index=True
     )
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_rooms.id"), default=None)
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_services.id"), default=None)
     starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     status: Mapped[ScheduleSlotStatus] = mapped_column(

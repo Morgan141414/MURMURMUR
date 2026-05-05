@@ -248,6 +248,57 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     assert employee_response.status_code == 201, employee_response.text
     doctor_membership_id = employee_response.json()["id"]
 
+    branch_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/branches",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "name": "Main branch",
+            "address": "Shymkent, Tauke Khan 5",
+            "contacts": "+77000000031",
+        },
+    )
+    assert branch_response.status_code == 201, branch_response.text
+    branch_id = branch_response.json()["id"]
+
+    department_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/departments",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "branch_id": branch_id,
+            "name": "Therapy",
+            "description": "General outpatient consultations",
+        },
+    )
+    assert department_response.status_code == 201, department_response.text
+    department_id = department_response.json()["id"]
+
+    room_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/rooms",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "branch_id": branch_id,
+            "department_id": department_id,
+            "number": "101",
+            "title": "Consultation room",
+        },
+    )
+    assert room_response.status_code == 201, room_response.text
+    room_id = room_response.json()["id"]
+
+    service_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/services",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "department_id": department_id,
+            "code": "therapy_consult",
+            "title": "Therapist consultation",
+            "duration_minutes": 30,
+            "price": 7000,
+        },
+    )
+    assert service_response.status_code == 201, service_response.text
+    service_id = service_response.json()["id"]
+
     patient_response = client.post(
         "/api/v1/patients",
         headers={"Authorization": f"Bearer {founder_token}"},
@@ -275,6 +326,8 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
         headers={"Authorization": f"Bearer {founder_token}"},
         json={
             "doctor_membership_id": doctor_membership_id,
+            "room_id": room_id,
+            "service_id": service_id,
             "starts_at": starts_at.isoformat(),
             "ends_at": ends_at.isoformat(),
             "note": "Primary consultation window",
@@ -282,6 +335,8 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert schedule_slot_response.status_code == 201, schedule_slot_response.text
     schedule_slot_id = schedule_slot_response.json()["id"]
+    assert schedule_slot_response.json()["room_id"] == room_id
+    assert schedule_slot_response.json()["service_id"] == service_id
 
     overlapping_slot_response = client.post(
         f"/api/v1/clinics/{clinic_id}/schedule/slots",
@@ -308,6 +363,8 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
         json={
             "patient_profile_id": patient_id,
             "doctor_membership_id": doctor_membership_id,
+            "room_id": room_id,
+            "service_id": service_id,
             "starts_at": starts_at.isoformat(),
             "ends_at": ends_at.isoformat(),
             "reason": "Primary consultation",
@@ -315,6 +372,8 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     )
     assert appointment_response.status_code == 201, appointment_response.text
     appointment_id = appointment_response.json()["id"]
+    assert appointment_response.json()["room_id"] == room_id
+    assert appointment_response.json()["service_id"] == service_id
 
     booked_slots_response = client.get(
         f"/api/v1/clinics/{clinic_id}/schedule/slots",

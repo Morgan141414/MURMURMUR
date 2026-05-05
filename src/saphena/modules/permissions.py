@@ -18,6 +18,7 @@ class PermissionCode(StrEnum):
     clinic_application_create = "clinic_application:create"
     clinic_application_moderate = "clinic_application:moderate"
     clinic_read = "clinic:read"
+    org_structure_manage = "org_structure:manage"
     employee_manage = "employee:manage"
     patient_manage = "patient:manage"
     schedule_manage = "schedule:manage"
@@ -53,6 +54,7 @@ ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
     RoleCode.support_agent: {PermissionCode.support_manage, PermissionCode.audit_read},
     RoleCode.clinic_founder: {
         PermissionCode.clinic_read,
+        PermissionCode.org_structure_manage,
         PermissionCode.employee_manage,
         PermissionCode.patient_manage,
         PermissionCode.schedule_manage,
@@ -63,6 +65,7 @@ ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
     },
     RoleCode.clinic_ceo: {
         PermissionCode.clinic_read,
+        PermissionCode.org_structure_manage,
         PermissionCode.employee_manage,
         PermissionCode.patient_manage,
         PermissionCode.schedule_manage,
@@ -72,6 +75,7 @@ ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
     },
     RoleCode.chief_doctor: {
         PermissionCode.clinic_read,
+        PermissionCode.org_structure_manage,
         PermissionCode.patient_manage,
         PermissionCode.schedule_manage,
         PermissionCode.appointment_manage,

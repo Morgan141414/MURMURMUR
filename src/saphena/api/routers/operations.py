@@ -9,6 +9,14 @@ from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
     AppointmentUpdate,
+    ClinicBranchCreate,
+    ClinicBranchRead,
+    ClinicDepartmentCreate,
+    ClinicDepartmentRead,
+    ClinicRoomCreate,
+    ClinicRoomRead,
+    ClinicServiceCreate,
+    ClinicServiceRead,
     DoctorScheduleSlotCreate,
     DoctorScheduleSlotRead,
     DoctorScheduleSlotUpdate,
@@ -35,8 +43,12 @@ from saphena.modules.enums import AppointmentStatus, ScheduleSlotStatus
 from saphena.modules.models import (
     Account,
     Appointment,
+    ClinicBranch,
+    ClinicDepartment,
     ClinicMembership,
     ClinicPatient,
+    ClinicRoom,
+    ClinicService,
     CrmLead,
     DocumentTemplate,
     GeneratedDocument,
@@ -63,6 +75,248 @@ def _render_template(content: str, context: dict[str, str]) -> str:
         return context.get(key, "")
 
     return PLACEHOLDER_PATTERN.sub(replacer, content)
+
+
+def _ensure_clinic_structure_access(
+    db: DbSession, current_account: CurrentAccount, clinic_id: int, *, write: bool = False
+) -> None:
+    permission = PermissionCode.org_structure_manage if write else PermissionCode.clinic_read
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, permission, clinic_id)
+        or (
+            not write
+            and has_permission(db, current_account, PermissionCode.org_structure_manage, clinic_id)
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing clinic structure access",
+        )
+
+
+def _ensure_branch(db: DbSession, *, clinic_id: int, branch_id: int) -> ClinicBranch:
+    branch = db.get(ClinicBranch, branch_id)
+    if branch is None or branch.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
+    return branch
+
+
+def _ensure_department(
+    db: DbSession, *, clinic_id: int, department_id: int | None
+) -> ClinicDepartment | None:
+    if department_id is None:
+        return None
+    department = db.get(ClinicDepartment, department_id)
+    if department is None or department.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid department_id")
+    return department
+
+
+def _ensure_room(db: DbSession, *, clinic_id: int, room_id: int | None) -> ClinicRoom | None:
+    if room_id is None:
+        return None
+    room = db.get(ClinicRoom, room_id)
+    if room is None or room.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid room_id")
+    return room
+
+
+def _ensure_service(
+    db: DbSession, *, clinic_id: int, service_id: int | None
+) -> ClinicService | None:
+    if service_id is None:
+        return None
+    service = db.get(ClinicService, service_id)
+    if service is None or service.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid service_id")
+    return service
+
+
+@router.get("/clinics/{clinic_id}/branches", response_model=list[ClinicBranchRead])
+def list_clinic_branches(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[ClinicBranch]:
+    _ensure_clinic_structure_access(db, current_account, clinic_id)
+    stmt = select(ClinicBranch).where(ClinicBranch.clinic_id == clinic_id).order_by(ClinicBranch.id)
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/branches",
+    response_model=ClinicBranchRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_clinic_branch(
+    clinic_id: int,
+    payload: ClinicBranchCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicBranch:
+    _ensure_clinic_structure_access(db, current_account, clinic_id, write=True)
+    item = ClinicBranch(
+        clinic_id=clinic_id,
+        name=payload.name,
+        address=payload.address,
+        contacts=payload.contacts,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="clinic_branch.create",
+        entity_type="clinic_branch",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/clinics/{clinic_id}/departments", response_model=list[ClinicDepartmentRead])
+def list_clinic_departments(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[ClinicDepartment]:
+    _ensure_clinic_structure_access(db, current_account, clinic_id)
+    stmt = (
+        select(ClinicDepartment)
+        .where(ClinicDepartment.clinic_id == clinic_id)
+        .order_by(ClinicDepartment.id)
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/departments",
+    response_model=ClinicDepartmentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_clinic_department(
+    clinic_id: int,
+    payload: ClinicDepartmentCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicDepartment:
+    _ensure_clinic_structure_access(db, current_account, clinic_id, write=True)
+    _ensure_branch(db, clinic_id=clinic_id, branch_id=payload.branch_id)
+    item = ClinicDepartment(
+        clinic_id=clinic_id,
+        branch_id=payload.branch_id,
+        name=payload.name,
+        description=payload.description,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="clinic_department.create",
+        entity_type="clinic_department",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/clinics/{clinic_id}/rooms", response_model=list[ClinicRoomRead])
+def list_clinic_rooms(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[ClinicRoom]:
+    _ensure_clinic_structure_access(db, current_account, clinic_id)
+    stmt = select(ClinicRoom).where(ClinicRoom.clinic_id == clinic_id).order_by(ClinicRoom.id)
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/rooms",
+    response_model=ClinicRoomRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_clinic_room(
+    clinic_id: int,
+    payload: ClinicRoomCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicRoom:
+    _ensure_clinic_structure_access(db, current_account, clinic_id, write=True)
+    branch = _ensure_branch(db, clinic_id=clinic_id, branch_id=payload.branch_id)
+    department = _ensure_department(db, clinic_id=clinic_id, department_id=payload.department_id)
+    if department is not None and department.branch_id != branch.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="department_id does not belong to selected branch",
+        )
+    item = ClinicRoom(
+        clinic_id=clinic_id,
+        branch_id=payload.branch_id,
+        department_id=payload.department_id,
+        number=payload.number,
+        title=payload.title,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="clinic_room.create",
+        entity_type="clinic_room",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/clinics/{clinic_id}/services", response_model=list[ClinicServiceRead])
+def list_clinic_services(
+    clinic_id: int, db: DbSession, current_account: CurrentAccount
+) -> list[ClinicService]:
+    _ensure_clinic_structure_access(db, current_account, clinic_id)
+    stmt = (
+        select(ClinicService).where(ClinicService.clinic_id == clinic_id).order_by(ClinicService.id)
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/services",
+    response_model=ClinicServiceRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_clinic_service(
+    clinic_id: int,
+    payload: ClinicServiceCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicService:
+    _ensure_clinic_structure_access(db, current_account, clinic_id, write=True)
+    _ensure_department(db, clinic_id=clinic_id, department_id=payload.department_id)
+    item = ClinicService(
+        clinic_id=clinic_id,
+        department_id=payload.department_id,
+        code=payload.code,
+        title=payload.title,
+        duration_minutes=payload.duration_minutes,
+        price=payload.price,
+    )
+    db.add(item)
+    db.flush()
+    audit(
+        db,
+        action="clinic_service.create",
+        entity_type="clinic_service",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 @router.get("/patients", response_model=list[PatientRead])
@@ -209,6 +463,8 @@ def _ensure_slot_window_is_free(
     *,
     clinic_id: int,
     doctor_membership_id: int,
+    room_id: int | None = None,
+    service_id: int | None = None,
     starts_at: datetime,
     ends_at: datetime,
     exclude_slot_id: int | None = None,
@@ -226,6 +482,22 @@ def _ensure_slot_window_is_free(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Schedule slot overlaps existing doctor's slot",
+        )
+    if room_id is None:
+        return
+    room_stmt = select(ScheduleSlot).where(
+        ScheduleSlot.clinic_id == clinic_id,
+        ScheduleSlot.room_id == room_id,
+        ScheduleSlot.starts_at < ends_at,
+        ScheduleSlot.ends_at > starts_at,
+        ScheduleSlot.status.notin_(["canceled"]),
+    )
+    if exclude_slot_id is not None:
+        room_stmt = room_stmt.where(ScheduleSlot.id != exclude_slot_id)
+    if db.scalar(room_stmt) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Schedule slot overlaps existing room slot",
         )
 
 
@@ -366,16 +638,22 @@ def create_doctor_schedule_slot(
         clinic_id=clinic_id,
         doctor_membership_id=payload.doctor_membership_id,
     )
+    _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
+    _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
     _ensure_slot_window_is_free(
         db,
         clinic_id=clinic_id,
         doctor_membership_id=payload.doctor_membership_id,
+        room_id=payload.room_id,
+        service_id=payload.service_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
     )
     item = ScheduleSlot(
         clinic_id=clinic_id,
         doctor_membership_id=payload.doctor_membership_id,
+        room_id=payload.room_id,
+        service_id=payload.service_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         status=payload.status,
@@ -435,6 +713,12 @@ def update_doctor_schedule_slot(
     )
     item.starts_at = starts_at
     item.ends_at = ends_at
+    if payload.room_id is not None:
+        _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
+        item.room_id = payload.room_id
+    if payload.service_id is not None:
+        _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
+        item.service_id = payload.service_id
     if payload.status is not None:
         item.status = payload.status
     if payload.note is not None:
@@ -481,6 +765,8 @@ def create_appointment(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="doctor_membership_id is not valid for selected clinic",
             )
+    _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
+    _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
 
     overlap_stmt = select(Appointment).where(
         Appointment.clinic_id == clinic_id,
@@ -499,6 +785,8 @@ def create_appointment(
         clinic_id=clinic_id,
         patient_profile_id=payload.patient_profile_id,
         doctor_membership_id=payload.doctor_membership_id,
+        room_id=payload.room_id,
+        service_id=payload.service_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         status=payload.status,
@@ -620,6 +908,12 @@ def update_appointment(
     item.starts_at = starts_at
     item.ends_at = ends_at
     item.status = next_status
+    if payload.room_id is not None:
+        _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
+        item.room_id = payload.room_id
+    if payload.service_id is not None:
+        _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
+        item.service_id = payload.service_id
     if payload.reason is not None:
         item.reason = payload.reason
     db.add(item)

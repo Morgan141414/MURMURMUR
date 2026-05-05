@@ -121,6 +121,80 @@ class ClinicRead(BaseModel):
     status: ClinicStatus
 
 
+class ClinicBranchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    address: str = Field(min_length=1, max_length=255)
+    contacts: str | None = None
+
+
+class ClinicBranchRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    name: str
+    address: str
+    contacts: str | None = None
+    is_active: bool
+
+
+class ClinicDepartmentCreate(BaseModel):
+    branch_id: int
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+
+
+class ClinicDepartmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    branch_id: int
+    name: str
+    description: str | None = None
+    is_active: bool
+
+
+class ClinicRoomCreate(BaseModel):
+    branch_id: int
+    department_id: int | None = None
+    number: str = Field(min_length=1, max_length=80)
+    title: str | None = Field(default=None, max_length=255)
+
+
+class ClinicRoomRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    branch_id: int
+    department_id: int | None = None
+    number: str
+    title: str | None = None
+    is_active: bool
+
+
+class ClinicServiceCreate(BaseModel):
+    department_id: int | None = None
+    code: str = Field(min_length=2, max_length=80)
+    title: str = Field(min_length=1, max_length=255)
+    duration_minutes: int = Field(default=30, ge=5, le=480)
+    price: int | None = Field(default=None, ge=0)
+
+
+class ClinicServiceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    department_id: int | None = None
+    code: str
+    title: str
+    duration_minutes: int
+    price: int | None = None
+    is_active: bool
+
+
 class MembershipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -208,6 +282,8 @@ class PatientRead(BaseModel):
 class AppointmentCreate(BaseModel):
     patient_profile_id: int
     doctor_membership_id: int | None = None
+    room_id: int | None = None
+    service_id: int | None = None
     starts_at: datetime
     ends_at: datetime
     reason: str | None = None
@@ -227,6 +303,8 @@ class AppointmentRead(BaseModel):
     clinic_id: int
     patient_profile_id: int
     doctor_membership_id: int | None = None
+    room_id: int | None = None
+    service_id: int | None = None
     starts_at: datetime
     ends_at: datetime
     status: AppointmentStatus
@@ -238,6 +316,8 @@ class AppointmentUpdate(BaseModel):
     ends_at: datetime | None = None
     status: AppointmentStatus | None = None
     reason: str | None = None
+    room_id: int | None = None
+    service_id: int | None = None
 
     @model_validator(mode="after")
     def validate_time_window(self) -> "AppointmentUpdate":
@@ -264,6 +344,8 @@ class ScheduleSlotRead(BaseModel):
 
 class DoctorScheduleSlotCreate(BaseModel):
     doctor_membership_id: int
+    room_id: int | None = None
+    service_id: int | None = None
     starts_at: datetime
     ends_at: datetime
     status: ScheduleSlotStatus = ScheduleSlotStatus.available
@@ -281,6 +363,8 @@ class DoctorScheduleSlotUpdate(BaseModel):
     ends_at: datetime | None = None
     status: ScheduleSlotStatus | None = None
     note: str | None = None
+    room_id: int | None = None
+    service_id: int | None = None
 
     @model_validator(mode="after")
     def validate_time_window(self) -> "DoctorScheduleSlotUpdate":
@@ -299,6 +383,8 @@ class DoctorScheduleSlotRead(BaseModel):
     id: int
     clinic_id: int
     doctor_membership_id: int
+    room_id: int | None = None
+    service_id: int | None = None
     starts_at: datetime
     ends_at: datetime
     status: ScheduleSlotStatus
