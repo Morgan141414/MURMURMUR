@@ -105,6 +105,13 @@ export default function ClinicalWorkspacePage() {
   const [appointmentDoctorFilter, setAppointmentDoctorFilter] = useState<'all' | string>('all')
   const [appointmentRoomFilter, setAppointmentRoomFilter] = useState<'all' | string>('all')
   const [appointmentDateFilter, setAppointmentDateFilter] = useState('')
+  const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null)
+  const [editAppointmentDoctorId, setEditAppointmentDoctorId] = useState('')
+  const [editAppointmentRoomId, setEditAppointmentRoomId] = useState('')
+  const [editAppointmentDate, setEditAppointmentDate] = useState('')
+  const [editAppointmentDuration, setEditAppointmentDuration] = useState('30')
+  const [editAppointmentStatus, setEditAppointmentStatus] = useState('')
+  const [editAppointmentReason, setEditAppointmentReason] = useState('')
 
   async function refreshClinicalData() {
     if (!clinicId) return
@@ -377,6 +384,56 @@ export default function ClinicalWorkspacePage() {
       await refreshClinicalData()
     } catch {
       toast.error('Не удалось обновить статус записи')
+    }
+  }
+
+  function startAppointmentEdit(appointment: Appointment) {
+    setEditingAppointmentId(appointment.id)
+    setEditAppointmentDoctorId(appointment.doctor_membership_id ? String(appointment.doctor_membership_id) : '')
+    setEditAppointmentRoomId(appointment.room_id ? String(appointment.room_id) : '')
+    setEditAppointmentDate(toDateTimeLocalValue(new Date(appointment.starts_at)))
+    setEditAppointmentStatus(appointment.status)
+    setEditAppointmentReason(appointment.reason || '')
+    const durationMinutes = Math.max(
+      15,
+      Math.round((new Date(appointment.ends_at).getTime() - new Date(appointment.starts_at).getTime()) / 60000),
+    )
+    setEditAppointmentDuration(String(durationMinutes))
+  }
+
+  function cancelAppointmentEdit() {
+    setEditingAppointmentId(null)
+    setEditAppointmentDoctorId('')
+    setEditAppointmentRoomId('')
+    setEditAppointmentDate('')
+    setEditAppointmentDuration('30')
+    setEditAppointmentStatus('')
+    setEditAppointmentReason('')
+  }
+
+  async function saveAppointmentEdit(appointment: Appointment) {
+    if (!clinicId) return
+    if (!editAppointmentDate) {
+      toast.error('Укажите дату и время приёма')
+      return
+    }
+    const startsAt = new Date(editAppointmentDate)
+    const durationMinutes = Number(editAppointmentDuration) || 30
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000)
+    try {
+      await updateAppointment(clinicId, appointment.id, {
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        status: editAppointmentStatus || appointment.status,
+        reason: editAppointmentReason.trim() || null,
+        doctor_membership_id: editAppointmentDoctorId ? Number(editAppointmentDoctorId) : null,
+        room_id: editAppointmentRoomId ? Number(editAppointmentRoomId) : null,
+      })
+      toast.success('Запись обновлена')
+      cancelAppointmentEdit()
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось обновить запись. Проверьте пересечения врача/кабинета.')
     }
   }
 
@@ -925,7 +982,57 @@ export default function ClinicalWorkspacePage() {
                   {' · '}
                   Кабинет: {appointment.room_id ? `#${appointment.room_id}` : 'не указан'}
                 </p>
+                {editingAppointmentId === appointment.id ? (
+                  <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select value={editAppointmentDoctorId} onChange={(event) => setEditAppointmentDoctorId(event.target.value)} className={inputClass}>
+                        <option value="">Без врача</option>
+                        {availableDoctors.map((employee) => (
+                          <option key={employee.id} value={String(employee.id)}>
+                            #{employee.id} {employee.position || employee.role_code}
+                          </option>
+                        ))}
+                      </select>
+                      <select value={editAppointmentRoomId} onChange={(event) => setEditAppointmentRoomId(event.target.value)} className={inputClass}>
+                        <option value="">Без кабинета</option>
+                        {rooms.map((room) => (
+                          <option key={room.id} value={String(room.id)}>
+                            Каб. {room.number}{room.title ? ` · ${room.title}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <input type="datetime-local" value={editAppointmentDate} onChange={(event) => setEditAppointmentDate(event.target.value)} className={inputClass} />
+                      <select value={editAppointmentDuration} onChange={(event) => setEditAppointmentDuration(event.target.value)} className={inputClass}>
+                        <option value="15">15 минут</option>
+                        <option value="30">30 минут</option>
+                        <option value="45">45 минут</option>
+                        <option value="60">60 минут</option>
+                      </select>
+                      <select value={editAppointmentStatus} onChange={(event) => setEditAppointmentStatus(event.target.value)} className={inputClass}>
+                        {appointmentStatusOptions.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <input value={editAppointmentReason} onChange={(event) => setEditAppointmentReason(event.target.value)} placeholder="Причина обращения" className={inputClass} />
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => void saveAppointmentEdit(appointment)}>Сохранить</Button>
+                      <Button size="sm" variant="outline" onClick={cancelAppointmentEdit}>Отмена</Button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {editingAppointmentId !== appointment.id ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startAppointmentEdit(appointment)}
+                    >
+                      Редактировать
+                    </Button>
+                  ) : null}
                   {appointment.status === 'created' ? (
                     <Button
                       size="sm"

@@ -39,6 +39,9 @@ export interface AppointmentUpdatePayload {
   ends_at?: string
   status?: string
   reason?: string | null
+  doctor_membership_id?: number | null
+  room_id?: number | null
+  service_id?: number | null
 }
 
 export interface Appointment {
