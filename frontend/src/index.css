@@ -699,6 +699,27 @@
     box-shadow: inset -1px 0 0 color-mix(in srgb, var(--primary) 12%, transparent);
   }
 
+  .shell-sidebar-surface {
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--sidebar) 92%, var(--primary) 8%) 0%, var(--sidebar) 100%);
+  }
+
+  .shell-header-surface {
+    background: color-mix(in srgb, var(--surface-1) 90%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, var(--primary) 18%);
+  }
+
+  .medical-section,
+  .enterprise-card,
+  .enterprise-card-interactive,
+  [data-slot="table-container"] {
+    box-shadow: 0 8px 24px rgba(8, 29, 35, 0.18);
+  }
+
+  .welcome-banner {
+    border: 1px solid color-mix(in srgb, var(--border) 78%, var(--primary) 22%);
+    background: linear-gradient(120deg, color-mix(in srgb, var(--surface-1) 93%, var(--primary) 7%) 0%, var(--surface-1) 100%);
+  }
+
   /* Header surface (translucent) */
   .shell-header-surface {
     background: color-mix(in srgb, var(--surface-1) 92%, transparent);
