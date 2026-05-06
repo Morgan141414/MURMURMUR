@@ -184,6 +184,16 @@ export interface ClinicGeneratedDocument {
   created_at: string
 }
 
+export interface UserClinicSummary {
+  id: number
+  name: string
+  legal_name: string
+  bin_iin: string
+  address: string
+  contacts?: string | null
+  status: string
+}
+
 export interface DocumentTemplatePayload {
   code: string
   title: string
@@ -198,6 +208,10 @@ export interface DocumentRenderPayload {
   appointment_id?: number | null
   medical_record_entry_id?: number | null
   extras?: Record<string, string>
+}
+
+export function listUserClinics() {
+  return api.get<UserClinicSummary[]>('/clinics')
 }
 
 export function createPatient(payload: PatientCreatePayload) {

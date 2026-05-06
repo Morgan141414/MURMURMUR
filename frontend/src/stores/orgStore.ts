@@ -47,9 +47,21 @@ export const useOrgStore = create<OrgState>()(
 
       setOrgs: (orgs) => {
         const { activeOrgId } = get()
-        // If active org no longer in list, reset to null
-        const stillExists = orgs.some((o) => o.orgId === activeOrgId)
-        set({ orgs, activeOrgId: stillExists ? activeOrgId : (orgs.length > 0 ? orgs[0].orgId : null) })
+        const current = orgs.find((o) => o.orgId === activeOrgId) ?? null
+        const firstActive = orgs.find((o) => o.isActive !== false) ?? null
+
+        let nextActiveOrgId: string | null = null
+        if (current && current.isActive !== false) {
+          nextActiveOrgId = current.orgId
+        } else if (firstActive) {
+          nextActiveOrgId = firstActive.orgId
+        } else if (current) {
+          nextActiveOrgId = current.orgId
+        } else if (orgs.length > 0) {
+          nextActiveOrgId = orgs[0].orgId
+        }
+
+        set({ orgs, activeOrgId: nextActiveOrgId })
       },
 
       addOrg: (org) => {

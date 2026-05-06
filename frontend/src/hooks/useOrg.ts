@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { CompanyAccount, Org, JoinRequest } from '@/types'
+import type { CompanyAccount, Org, JoinRequest, OrgRole } from '@/types'
 import {
   listMyOrgs,
   createOrg,
@@ -10,7 +10,9 @@ import {
   rejectJoinRequest,
 } from '@/api/orgs'
 import { queryKeys } from '@/lib/queryKeys'
+import { listUserClinics, listClinicEmployees } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
+import { useAuthStore } from '@/stores/authStore'
 
 /** Fetch all orgs the current user belongs to, with roles. */
 export function useMyOrgs() {
@@ -20,19 +22,51 @@ export function useMyOrgs() {
     queryKey: queryKeys.org.myOrgs(),
     queryFn: async () => {
       const { data } = await listMyOrgs()
-      // Sync to zustand store
-      setOrgs(
-        data.map((o) => ({
-          orgId: o.id,
-          orgName: o.name,
-          role: o.role,
-          logoUrl: o.logo_url ?? undefined,
-          isActive: o.is_active ?? true,
-          moderationStatus: o.moderation_status ?? 'pending',
-          moderationComment: o.moderation_comment ?? null,
-        })),
+      if (data.length > 0) {
+        setOrgs(
+          data.map((o) => ({
+            orgId: o.id,
+            orgName: o.name,
+            role: o.role,
+            logoUrl: o.logo_url ?? undefined,
+            isActive: o.is_active ?? true,
+            moderationStatus: o.moderation_status ?? 'pending',
+            moderationComment: o.moderation_comment ?? null,
+          })),
+        )
+        return data
+      }
+
+      // Fallback for clinic-first runtime where /orgs may be empty but /clinics is populated.
+      const clinicsResponse = await listUserClinics()
+      const clinics = clinicsResponse.data
+      const myAccountId = Number(useAuthStore.getState().userId || 0)
+      const clinicOrgs = await Promise.all(
+        clinics.map(async (clinic) => {
+          let role: OrgRole = 'member'
+          try {
+            const employees = await listClinicEmployees(clinic.id)
+            const me = employees.data.find((item) => item.account_id === myAccountId)
+            if (me?.role_code === 'clinic_founder') role = 'founder'
+            else if (me?.role_code === 'clinic_ceo') role = 'ceo'
+            else if (me?.role_code === 'chief_doctor' || me?.role_code === 'doctor' || me?.role_code === 'reception_admin' || me?.role_code === 'call_center') role = 'admin'
+            else role = 'member'
+          } catch {
+            role = 'member'
+          }
+          return {
+            orgId: String(clinic.id),
+            orgName: clinic.name,
+            role,
+            logoUrl: undefined,
+            isActive: clinic.status === 'active',
+            moderationStatus: clinic.status === 'active' ? 'approved' : 'pending',
+            moderationComment: null,
+          }
+        }),
       )
-      return data
+      setOrgs(clinicOrgs)
+      return []
     },
   })
 }
