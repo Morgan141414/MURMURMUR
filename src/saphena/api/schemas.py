@@ -318,6 +318,7 @@ class AppointmentUpdate(BaseModel):
     ends_at: datetime | None = None
     status: AppointmentStatus | None = None
     reason: str | None = None
+    doctor_membership_id: int | None = None
     room_id: int | None = None
     service_id: int | None = None
 

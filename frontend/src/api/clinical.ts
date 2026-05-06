@@ -161,6 +161,45 @@ export interface MedicalRecordEntry {
   created_at: string
 }
 
+export interface ClinicDocumentTemplate {
+  id: number
+  clinic_id?: number | null
+  code: string
+  title: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ClinicGeneratedDocument {
+  id: number
+  clinic_id: number
+  template_id?: number | null
+  patient_profile_id?: number | null
+  appointment_id?: number | null
+  medical_record_entry_id?: number | null
+  code: string
+  title: string
+  body: string
+  created_at: string
+}
+
+export interface DocumentTemplatePayload {
+  code: string
+  title: string
+  body: string
+}
+
+export interface DocumentRenderPayload {
+  template_id?: number
+  template_code?: string
+  title?: string
+  patient_profile_id?: number | null
+  appointment_id?: number | null
+  medical_record_entry_id?: number | null
+  extras?: Record<string, string>
+}
+
 export function createPatient(payload: PatientCreatePayload) {
   return api.post<Patient>('/patients', payload)
 }
@@ -231,4 +270,21 @@ export function createMedicalRecord(clinicId: number, payload: MedicalRecordCrea
 
 export function listMedicalRecords(clinicId: number) {
   return api.get<MedicalRecordEntry[]>(`/clinics/${clinicId}/medical-records`)
+}
+
+
+export function listClinicDocumentTemplates(clinicId: number) {
+  return api.get<ClinicDocumentTemplate[]>(`/clinics/${clinicId}/documents/templates`)
+}
+
+export function saveClinicDocumentTemplate(clinicId: number, payload: DocumentTemplatePayload) {
+  return api.post<ClinicDocumentTemplate>(`/clinics/${clinicId}/documents/templates`, payload)
+}
+
+export function listClinicGeneratedDocuments(clinicId: number) {
+  return api.get<ClinicGeneratedDocument[]>(`/clinics/${clinicId}/documents/generated`)
+}
+
+export function renderClinicDocument(clinicId: number, payload: DocumentRenderPayload) {
+  return api.post<ClinicGeneratedDocument>(`/clinics/${clinicId}/documents/render`, payload)
 }

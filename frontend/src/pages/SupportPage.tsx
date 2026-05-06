@@ -57,6 +57,8 @@ export default function SupportPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | SupportThreadStatus>("all");
   const [priorityFilter, setPriorityFilter] = useState<"all" | SupportPriority>("all");
+  const [queueScope, setQueueScope] = useState<"all" | "open" | "my">("all");
+  const [assignToId, setAssignToId] = useState("");
 
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
@@ -93,8 +95,14 @@ export default function SupportPage() {
     };
   }, []);
 
+  const currentAccountId = Number(useAuthStore.getState().userId || 0);
+
   const filteredThreads = useMemo(() => {
     return threads.filter((thread) => {
+      if (canManageQueue) {
+        if (queueScope === "open" && thread.status === "closed") return false;
+        if (queueScope === "my" && thread.assigned_to_account_id !== currentAccountId) return false;
+      }
       if (statusFilter !== "all" && thread.status !== statusFilter) return false;
       if (priorityFilter !== "all" && thread.priority !== priorityFilter) return false;
       if (!search.trim()) return true;
@@ -104,7 +112,7 @@ export default function SupportPage() {
         thread.request_type.toLowerCase().includes(needle)
       );
     });
-  }, [threads, statusFilter, priorityFilter, search]);
+  }, [threads, statusFilter, priorityFilter, search, canManageQueue, queueScope, currentAccountId]);
 
   async function handleSelectThread(threadId: number) {
     setSelectedId(threadId);
@@ -230,6 +238,17 @@ export default function SupportPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск"
             />
+            {canManageQueue ? (
+              <select
+                value={queueScope}
+                onChange={(e) => setQueueScope(e.target.value as "all" | "open" | "my")}
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+              >
+                <option value="all">Вся очередь</option>
+                <option value="open">Открытые</option>
+                <option value="my">Назначенные мне</option>
+              </select>
+            ) : null}
             <div className="flex gap-2">
               <select
                 value={statusFilter}
@@ -334,14 +353,37 @@ export default function SupportPage() {
                         </option>
                       ))}
                     </select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleManageThread({ assigned_to_account_id: null })}
-                    >
-                      Снять назначение
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={assignToId}
+                        onChange={(e) => setAssignToId(e.target.value.replace(/\D/g, ""))}
+                        placeholder="ID агента"
+                        className="h-8 w-28"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const parsed = Number(assignToId);
+                          if (!parsed) {
+                            toast.error("Укажите корректный ID агента");
+                            return;
+                          }
+                          void handleManageThread({ assigned_to_account_id: parsed });
+                        }}
+                      >
+                        Назначить
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleManageThread({ assigned_to_account_id: null })}
+                      >
+                        Снять
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

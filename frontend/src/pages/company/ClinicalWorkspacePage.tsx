@@ -20,6 +20,10 @@ import {
   listMedicalRecords,
   listRoleCatalog,
   listScheduleSlots,
+  listClinicDocumentTemplates,
+  listClinicGeneratedDocuments,
+  renderClinicDocument,
+  saveClinicDocumentTemplate,
   updateAppointment,
   type Appointment,
   type ClinicBranch,
@@ -27,6 +31,8 @@ import {
   type ClinicMembership,
   type ClinicRoom,
   type MedicalRecordEntry,
+  type ClinicDocumentTemplate,
+  type ClinicGeneratedDocument,
   type Patient,
   type RoleDefinition,
   type ScheduleSlot,
@@ -63,6 +69,8 @@ export default function ClinicalWorkspacePage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecordEntry[]>([])
+  const [docTemplates, setDocTemplates] = useState<ClinicDocumentTemplate[]>([])
+  const [generatedDocs, setGeneratedDocs] = useState<ClinicGeneratedDocument[]>([])
   const [employees, setEmployees] = useState<ClinicMembership[]>([])
   const [roleCatalog, setRoleCatalog] = useState<RoleDefinition[]>([])
   const [branches, setBranches] = useState<ClinicBranch[]>([])
@@ -92,6 +100,13 @@ export default function ClinicalWorkspacePage() {
   const [recordAppointmentId, setRecordAppointmentId] = useState('')
   const [recordDiagnosis, setRecordDiagnosis] = useState('')
   const [recordConclusion, setRecordConclusion] = useState('')
+
+  const [templateTitle, setTemplateTitle] = useState('')
+  const [templateBody, setTemplateBody] = useState('')
+  const [renderTemplateId, setRenderTemplateId] = useState('')
+  const [renderPatientId, setRenderPatientId] = useState('')
+  const [renderAppointmentId, setRenderAppointmentId] = useState('')
+  const [renderRecordId, setRenderRecordId] = useState('')
 
   const [employeeIin, setEmployeeIin] = useState('')
   const [employeeRoleCode, setEmployeeRoleCode] = useState('')
@@ -130,6 +145,8 @@ export default function ClinicalWorkspacePage() {
         branchesResponse,
         departmentsResponse,
         roomsResponse,
+        docTemplatesResponse,
+        generatedDocsResponse,
       ] = await Promise.all([
         listClinicPatients(clinicId),
         listAppointments(clinicId),
@@ -140,6 +157,8 @@ export default function ClinicalWorkspacePage() {
         listClinicBranches(clinicId),
         listClinicDepartments(clinicId),
         listClinicRooms(clinicId),
+        listClinicDocumentTemplates(clinicId),
+        listClinicGeneratedDocuments(clinicId),
       ])
       setPatients(patientsResponse.data)
       setAppointments(appointmentsResponse.data)
@@ -150,6 +169,8 @@ export default function ClinicalWorkspacePage() {
       setBranches(branchesResponse.data)
       setDepartments(departmentsResponse.data)
       setRooms(roomsResponse.data)
+      setDocTemplates(docTemplatesResponse.data)
+      setGeneratedDocs(generatedDocsResponse.data)
     } catch {
       toast.error('Не удалось загрузить клинические данные')
     } finally {
@@ -324,6 +345,54 @@ export default function ClinicalWorkspacePage() {
       await refreshClinicalData()
     } catch {
       toast.error('Не удалось добавить запись в медкарту')
+    }
+  }
+
+  async function handleCreateTemplate() {
+    if (!clinicId) return
+    if (!templateTitle.trim() || !templateBody.trim()) {
+      toast.error('Заполните название и тело шаблона')
+      return
+    }
+    try {
+      const normalizedCode = templateTitle
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яё]+/gi, '_')
+        .replace(/^_+|_+$/g, '')
+      await saveClinicDocumentTemplate(clinicId, {
+        code: normalizedCode || `template_${Date.now()}`,
+        title: templateTitle.trim(),
+        body: templateBody.trim(),
+      })
+      toast.success('Шаблон сохранен')
+      setTemplateTitle('')
+      setTemplateBody('')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось сохранить шаблон')
+    }
+  }
+
+  async function handleRenderDocument() {
+    if (!clinicId) return
+    const templateId = Number(renderTemplateId)
+    const patientId = Number(renderPatientId)
+    if (!templateId || !patientId) {
+      toast.error('Выберите шаблон и пациента')
+      return
+    }
+    try {
+      await renderClinicDocument(clinicId, {
+        template_id: templateId,
+        patient_profile_id: patientId,
+        appointment_id: renderAppointmentId ? Number(renderAppointmentId) : undefined,
+        medical_record_entry_id: renderRecordId ? Number(renderRecordId) : undefined,
+      })
+      toast.success('Документ создан')
+      await refreshClinicalData()
+    } catch {
+      toast.error('Не удалось выпустить документ')
     }
   }
 
@@ -941,6 +1010,62 @@ export default function ClinicalWorkspacePage() {
               </p>
             ))}
             {rooms.length === 0 ? <p className="text-sm text-slate-500">Кабинеты пока не добавлены.</p> : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-950">Документолог: шаблоны</h3>
+          <p className="mt-1 text-sm text-slate-500">Базовые шаблоны документов клиники (MVP1)</p>
+          <div className="mt-4 grid gap-3">
+            <FieldLabel label="Название шаблона"><input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} placeholder="Протокол первичного приема" className={inputClass} /></FieldLabel>
+            <FieldLabel label="Текст шаблона"><textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} placeholder="Пациент: {{patient_name}}..." className={`${inputClass} min-h-[120px] py-3`} /></FieldLabel>
+            <Button onClick={() => void handleCreateTemplate()} disabled={!clinicId}>Сохранить шаблон</Button>
+          </div>
+          <div className="mt-4 max-h-40 space-y-2 overflow-y-auto pr-1 text-sm">
+            {docTemplates.slice(0, 10).map((template) => (
+              <p key={template.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-slate-700">#{template.id} {template.title}</p>
+            ))}
+            {docTemplates.length === 0 ? <p className="text-slate-500">Шаблоны пока не созданы.</p> : null}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-950">Выпуск документов</h3>
+          <p className="mt-1 text-sm text-slate-500">Генерация документа по шаблону, пациенту и приему</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <FieldLabel label="Шаблон">
+              <select value={renderTemplateId} onChange={(event) => setRenderTemplateId(event.target.value)} className={inputClass}>
+                <option value="">Выберите шаблон</option>
+                {docTemplates.map((template) => <option key={template.id} value={String(template.id)}>{template.title}</option>)}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Пациент">
+              <select value={renderPatientId} onChange={(event) => setRenderPatientId(event.target.value)} className={inputClass}>
+                <option value="">Выберите пациента</option>
+                {patients.map((patient) => <option key={patient.id} value={String(patient.id)}>{patient.person.last_name} {patient.person.first_name}</option>)}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Прием (опц.)">
+              <select value={renderAppointmentId} onChange={(event) => setRenderAppointmentId(event.target.value)} className={inputClass}>
+                <option value="">Без привязки</option>
+                {appointments.map((appointment) => <option key={appointment.id} value={String(appointment.id)}>#{appointment.id}</option>)}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Медзапись (опц.)">
+              <select value={renderRecordId} onChange={(event) => setRenderRecordId(event.target.value)} className={inputClass}>
+                <option value="">Без привязки</option>
+                {medicalRecords.map((record) => <option key={record.id} value={String(record.id)}>#{record.id} {record.diagnosis || 'Без диагноза'}</option>)}
+              </select>
+            </FieldLabel>
+          </div>
+          <Button className="mt-4" onClick={() => void handleRenderDocument()} disabled={!clinicId}>Сформировать документ</Button>
+          <div className="mt-4 max-h-40 space-y-2 overflow-y-auto pr-1 text-sm">
+            {generatedDocs.slice(0, 10).map((doc) => (
+              <p key={doc.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-slate-700">#{doc.id} {doc.title} · {new Date(doc.created_at).toLocaleString('ru-RU')}</p>
+            ))}
+            {generatedDocs.length === 0 ? <p className="text-slate-500">Сформированных документов пока нет.</p> : null}
           </div>
         </div>
       </section>

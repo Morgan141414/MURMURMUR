@@ -72,7 +72,7 @@ from saphena.modules.models import (
     SupportTicket,
     SupportThread,
 )
-from saphena.modules.permissions import PermissionCode
+from saphena.modules.permissions import PermissionCode, RoleCode
 from saphena.services.access import has_permission
 from saphena.services.audit import audit
 from saphena.services.notifications import create_notification
@@ -781,18 +781,32 @@ def create_appointment(
     _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
     _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
 
-    overlap_stmt = select(Appointment).where(
-        Appointment.clinic_id == clinic_id,
-        Appointment.doctor_membership_id == payload.doctor_membership_id,
-        Appointment.starts_at < payload.ends_at,
-        Appointment.ends_at > payload.starts_at,
-        Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
-    )
-    if payload.doctor_membership_id is not None and db.scalar(overlap_stmt) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Appointment overlaps existing doctor's slot",
+    if payload.doctor_membership_id is not None:
+        overlap_stmt = select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.doctor_membership_id == payload.doctor_membership_id,
+            Appointment.starts_at < payload.ends_at,
+            Appointment.ends_at > payload.starts_at,
+            Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
         )
+        if db.scalar(overlap_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Appointment overlaps existing doctor's slot",
+            )
+    if payload.room_id is not None:
+        room_overlap_stmt = select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.room_id == payload.room_id,
+            Appointment.starts_at < payload.ends_at,
+            Appointment.ends_at > payload.starts_at,
+            Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
+        )
+        if db.scalar(room_overlap_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Appointment overlaps existing room slot",
+            )
 
     item = Appointment(
         clinic_id=clinic_id,
@@ -863,15 +877,47 @@ def update_appointment(
     previous_starts_at = item.starts_at
     previous_ends_at = item.ends_at
     previous_status = item.status
+    previous_doctor_membership_id = item.doctor_membership_id
+
     starts_at = payload.starts_at or item.starts_at
     ends_at = payload.ends_at or item.ends_at
     next_status = payload.status or item.status
+    next_doctor_membership_id = item.doctor_membership_id
+    next_room_id = item.room_id
+
+    if payload.doctor_membership_id is not None:
+        if payload.doctor_membership_id <= 0:
+            next_doctor_membership_id = None
+        else:
+            _ensure_doctor_membership(
+                db,
+                clinic_id=clinic_id,
+                doctor_membership_id=payload.doctor_membership_id,
+            )
+            next_doctor_membership_id = payload.doctor_membership_id
+
+    if payload.room_id is not None:
+        if payload.room_id <= 0:
+            next_room_id = None
+        else:
+            _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
+            next_room_id = payload.room_id
+
+    if payload.service_id is not None:
+        if payload.service_id <= 0:
+            item.service_id = None
+        else:
+            _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
+            item.service_id = payload.service_id
+
     if ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ends_at must be greater than starts_at",
         )
-    if item.doctor_membership_id is not None and next_status not in {
+
+    excluded_statuses = [AppointmentStatus.canceled, AppointmentStatus.no_show]
+    if next_doctor_membership_id is not None and next_status not in {
         AppointmentStatus.canceled,
         AppointmentStatus.no_show,
         AppointmentStatus.rescheduled,
@@ -879,10 +925,10 @@ def update_appointment(
         overlap_stmt = select(Appointment).where(
             Appointment.id != item.id,
             Appointment.clinic_id == clinic_id,
-            Appointment.doctor_membership_id == item.doctor_membership_id,
+            Appointment.doctor_membership_id == next_doctor_membership_id,
             Appointment.starts_at < ends_at,
             Appointment.ends_at > starts_at,
-            Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
+            Appointment.status.notin_(excluded_statuses),
         )
         if db.scalar(overlap_stmt) is not None:
             raise HTTPException(
@@ -890,8 +936,27 @@ def update_appointment(
                 detail="Appointment overlaps existing doctor's slot",
             )
 
+    if next_room_id is not None and next_status not in {
+        AppointmentStatus.canceled,
+        AppointmentStatus.no_show,
+        AppointmentStatus.rescheduled,
+    }:
+        room_overlap_stmt = select(Appointment).where(
+            Appointment.id != item.id,
+            Appointment.clinic_id == clinic_id,
+            Appointment.room_id == next_room_id,
+            Appointment.starts_at < ends_at,
+            Appointment.ends_at > starts_at,
+            Appointment.status.notin_(excluded_statuses),
+        )
+        if db.scalar(room_overlap_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Appointment overlaps existing room slot",
+            )
+
     if (
-        item.doctor_membership_id is not None
+        previous_doctor_membership_id is not None
         and previous_status
         not in {
             AppointmentStatus.canceled,
@@ -901,6 +966,7 @@ def update_appointment(
         and (
             previous_starts_at != starts_at
             or previous_ends_at != ends_at
+            or previous_doctor_membership_id != next_doctor_membership_id
             or next_status
             in {
                 AppointmentStatus.canceled,
@@ -912,7 +978,7 @@ def update_appointment(
         _sync_schedule_slot_for_appointment(
             db,
             clinic_id=clinic_id,
-            doctor_membership_id=item.doctor_membership_id,
+            doctor_membership_id=previous_doctor_membership_id,
             starts_at=previous_starts_at,
             ends_at=previous_ends_at,
             appointment_status=AppointmentStatus.canceled,
@@ -921,14 +987,12 @@ def update_appointment(
     item.starts_at = starts_at
     item.ends_at = ends_at
     item.status = next_status
-    if payload.room_id is not None:
-        _ensure_room(db, clinic_id=clinic_id, room_id=payload.room_id)
-        item.room_id = payload.room_id
-    if payload.service_id is not None:
-        _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
-        item.service_id = payload.service_id
+    item.doctor_membership_id = next_doctor_membership_id
+    item.room_id = next_room_id
+
     if payload.reason is not None:
         item.reason = payload.reason
+
     db.add(item)
     _sync_schedule_slot_for_appointment(
         db,
@@ -1486,12 +1550,35 @@ def create_support_thread(
     db.add(legacy_ticket)
     db.flush()
     item.last_message_at = legacy_ticket.created_at
-    recipients = db.scalars(
-        select(ClinicMembership.account_id).where(
-            ClinicMembership.clinic_id == payload.clinic_id,
-            ClinicMembership.is_active.is_(True),
+    recipients: set[int] = set()
+    if payload.clinic_id is not None:
+        recipients.update(
+            db.scalars(
+                select(ClinicMembership.account_id).where(
+                    ClinicMembership.clinic_id == payload.clinic_id,
+                    ClinicMembership.is_active.is_(True),
+                )
+            ).all()
         )
-    ).all() if payload.clinic_id is not None else []
+
+    if _is_support_manager(db, current_account):
+        recipients.add(current_account.id)
+
+    # Notify support queue managers (superusers + support managers).
+    support_manager_ids = {
+        row[0]
+        for row in db.execute(
+            select(Account.id).where(Account.is_superuser.is_(True))
+        ).all()
+    }
+    memberships = db.scalars(
+        select(ClinicMembership).where(ClinicMembership.is_active.is_(True))
+    ).all()
+    for membership in memberships:
+        if membership.role_code == RoleCode.support_agent:
+            support_manager_ids.add(membership.account_id)
+    recipients.update(support_manager_ids)
+
     for recipient_account_id in recipients:
         if recipient_account_id != current_account.id:
             create_notification(
@@ -1617,6 +1704,13 @@ def update_support_thread(
             entity_id=item.id,
             details=f"assigned_to={item.assigned_to_account_id}",
         )
+        if item.assigned_to_account_id is not None and item.assigned_to_account_id != current_account.id:
+            create_notification(
+                db,
+                account_id=item.assigned_to_account_id,
+                title="Support thread assigned",
+                body=f"Thread #{item.id} assigned to you",
+            )
     if previous_status != item.status:
         create_notification(
             db,
