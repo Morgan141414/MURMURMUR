@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router'
 import { toast } from 'sonner'
 import { BriefcaseMedical, CalendarClock, CalendarCheck2, ClipboardPlus, DoorOpen, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
@@ -61,6 +62,7 @@ function toDateTimeLocalValue(date: Date) {
 }
 
 export default function ClinicalWorkspacePage() {
+  const location = useLocation()
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
   const currentUserId = useAuthStore((s) => s.userId)
   const clinicId = useMemo(() => {
@@ -197,6 +199,15 @@ export default function ClinicalWorkspacePage() {
   useEffect(() => {
     void refreshClinicalData()
   }, [clinicId])
+
+  useEffect(() => {
+    if (!location.hash) return
+    const target = document.querySelector(location.hash)
+    if (!target) return
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [location.hash, loading])
 
   useEffect(() => {
     if (patients.length === 0) {
@@ -685,7 +696,7 @@ export default function ClinicalWorkspacePage() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <section id="patients" className="scroll-mt-24 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-[28px] border border-cyan-100 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -859,7 +870,7 @@ export default function ClinicalWorkspacePage() {
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+      <div id="appointments" className="scroll-mt-24 grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
@@ -916,7 +927,8 @@ export default function ClinicalWorkspacePage() {
         </section>
       </div>
 
-      <ClinicCalendar
+      <div id="calendar" className="scroll-mt-24">
+        <ClinicCalendar
         appointments={appointments}
         employees={employees}
         patients={patients}
@@ -926,9 +938,10 @@ export default function ClinicalWorkspacePage() {
         onSelectWindow={handleCalendarWindowSelect}
         onSelectSlot={handleScheduleSlotSelect}
         onSelectAppointment={handleAppointmentSelect}
-      />
+        />
+      </div>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="schedule" className="scroll-mt-24 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
             <CalendarClock className="h-5 w-5" />
@@ -959,7 +972,7 @@ export default function ClinicalWorkspacePage() {
         <Button className="mt-4" onClick={() => void handleCreateScheduleSlot()} disabled={!clinicId}>Создать слот</Button>
       </section>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="records" className="scroll-mt-24 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
             <ClipboardPlus className="h-5 w-5" />
@@ -988,7 +1001,7 @@ export default function ClinicalWorkspacePage() {
         <Button className="mt-4" onClick={() => void handleCreateMedicalRecord()} disabled={!clinicId}>Добавить в медкарту</Button>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section id="rooms" className="scroll-mt-24 grid gap-5 xl:grid-cols-2">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">

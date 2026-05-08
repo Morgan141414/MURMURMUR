@@ -95,7 +95,8 @@
       "workspace": "Workspace",
       "tracking": "Tracking",
       "ownership": "Ownership",
-      "emergency": "Emergency"
+      "emergency": "Emergency",
+      "clinic": "Clinic"
     },
     "platformOverview": "Platform Overview",
     "companies": "Companies",
@@ -119,7 +120,7 @@
     "documents": "Documents",
     "joinRequests": "Join Requests",
     "companyPeople": "Employees / Colleagues",
-    "ownership": "Owners / Participants",
+    "ownership": "Ownership & Shares",
     "hrWorkspace": "HR Workspace",
     "onboarding": "Onboarding",
     "offboarding": "Offboarding",
@@ -150,7 +151,6 @@
     "projectLogs": "Project Logs",
     "projectSettings": "Project Settings",
     "governanceOverview": "Governance Overview",
-    "ownership": "Ownership & Shares",
     "criticalApprovals": "Critical Approvals",
     "decisionHistory": "Decision History",
     "governanceDocuments": "Governance Documents",
@@ -177,7 +177,15 @@
     "departments": "Departments",
     "personalCabinet": "Profile",
     "departmentHome": "Departments",
-    "platformUsers": "Users"
+    "platformUsers": "Users",
+    "clinical": "Calendar & Appointments",
+    "clinicWorkspace": "Clinical Workspace",
+    "calendar": "Calendar",
+    "appointments": "Appointments",
+    "patients": "Patients",
+    "medicalRecords": "Medical Records",
+    "roomsServices": "Rooms & Services",
+    "clinicalDocuments": "Clinical Documents"
   },
   "accounting": {
     "title": "Accounting",

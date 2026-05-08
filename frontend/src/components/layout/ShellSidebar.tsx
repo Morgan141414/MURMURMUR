@@ -355,9 +355,17 @@ function MainSidebar() {
   )
 }
 
-function isPathActive(pathname: string, to: string, end = false) {
-  if (end) return pathname === to
-  return pathname === to || pathname.startsWith(`${to}/`)
+function splitNavTarget(to: string) {
+  const [pathWithSearch, hash = ''] = to.split('#')
+  const [path] = pathWithSearch.split('?')
+  return { path, hash: hash ? `#${hash}` : '' }
+}
+
+function isPathActive(pathname: string, hash: string, to: string, end = false) {
+  const target = splitNavTarget(to)
+  if (target.hash) return pathname === target.path && hash === target.hash
+  if (end) return pathname === target.path
+  return pathname === target.path || pathname.startsWith(`${target.path}/`)
 }
 
 /* ═══════════════════════════════════════════════════
@@ -376,7 +384,7 @@ function SidebarNavItem({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const active = isPathActive(location.pathname, item.to, item.to === '/company' || item.to === '/department' || item.to === '/platform')
+  const active = isPathActive(location.pathname, location.hash, item.to, item.to === '/company' || item.to === '/department' || item.to === '/platform')
   const handleNavigate = () => {
     navigate(item.to)
   }
@@ -440,7 +448,7 @@ function UtilityLink({
   const navigate = useNavigate()
   const location = useLocation()
   const isSearchRoute = to === '/search' && (location.pathname === '/search' || location.pathname.startsWith('/explore/'))
-  const active = isSearchRoute || isPathActive(location.pathname, to)
+  const active = isSearchRoute || isPathActive(location.pathname, location.hash, to)
   const handleNavigate = () => {
     navigate(to)
   }

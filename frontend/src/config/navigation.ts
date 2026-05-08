@@ -9,6 +9,7 @@ import {
   Shield, ClipboardCheck,
   Megaphone, HeadphonesIcon, Scale, DollarSign,
   ContactRound,
+  CalendarDays, CalendarCheck2, DoorOpen, Stethoscope,
   Calculator,
   type LucideIcon,
 } from 'lucide-react'
@@ -37,6 +38,17 @@ export const companyNav: NavSection[] = [
       { to: '/company/crm', labelKey: 'nav.crm', icon: ContactRound, roles: ['founder', 'ceo', 'admin', 'sales_director', 'sales_manager', 'sales_support'] },
       { to: '/company/projects', labelKey: 'nav.departments', icon: FolderKanban, roles: ['founder', 'ceo', 'hr', 'lawyer'] },
       { to: '/company/documents', labelKey: 'nav.documents', icon: Files },
+    ],
+  },
+  {
+    labelKey: 'nav.sections.clinic',
+    items: [
+      { to: '/company/clinical#calendar', labelKey: 'nav.calendar', icon: CalendarDays },
+      { to: '/company/clinical#appointments', labelKey: 'nav.appointments', icon: CalendarCheck2 },
+      { to: '/company/clinical#patients', labelKey: 'nav.patients', icon: UsersRound },
+      { to: '/company/clinical#records', labelKey: 'nav.medicalRecords', icon: Stethoscope },
+      { to: '/company/clinical#rooms', labelKey: 'nav.roomsServices', icon: DoorOpen },
+      { to: '/company/clinical#clinical-documents', labelKey: 'nav.clinicalDocuments', icon: Files },
     ],
   },
   {

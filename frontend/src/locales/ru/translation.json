@@ -948,7 +948,8 @@
       "management": "Управление",
       "hr": "Кадры",
       "finance": "Финансы",
-      "workspace": "Рабочее пространство"
+      "workspace": "Рабочее пространство",
+      "clinic": "Клиника"
     },
     "platformOverview": "Обзор платформы",
     "companies": "Компании",
@@ -995,7 +996,15 @@
     "marketing": "Маркетинг",
     "search": "Поиск",
     "auditLog": "Активности",
-    "accounting": "Бухгалтерия"
+    "accounting": "Бухгалтерия",
+    "clinical": "Календарь и приёмы",
+    "clinicWorkspace": "Клинический кабинет",
+    "calendar": "?????????",
+    "appointments": "??????",
+    "patients": "????????",
+    "medicalRecords": "????????",
+    "roomsServices": "???????? ? ??????",
+    "clinicalDocuments": "????????????"
   },
   "accounting": {
     "title": "Бухгалтерия",
