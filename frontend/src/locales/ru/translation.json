@@ -999,12 +999,12 @@
     "accounting": "Бухгалтерия",
     "clinical": "Календарь и приёмы",
     "clinicWorkspace": "Клинический кабинет",
-    "calendar": "?????????",
-    "appointments": "??????",
-    "patients": "????????",
-    "medicalRecords": "????????",
-    "roomsServices": "???????? ? ??????",
-    "clinicalDocuments": "????????????"
+    "calendar": "Календарь",
+    "appointments": "Приёмы",
+    "patients": "Пациенты",
+    "medicalRecords": "Медкарта",
+    "roomsServices": "Кабинеты и услуги",
+    "clinicalDocuments": "Документолог"
   },
   "accounting": {
     "title": "Бухгалтерия",

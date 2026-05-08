@@ -664,6 +664,7 @@ export default function ClinicalWorkspacePage() {
           title="Клинический кабинет"
           description="Пациенты, записи, расписание и базовая медкарта в одном медицинском рабочем месте."
           eyebrow="Saphena M.I.S."
+          className="[&_h1]:text-slate-950 [&_p]:text-slate-600"
         />
         <div className="mt-6 flex flex-wrap gap-3">
           <Button onClick={() => void refreshClinicalData()} disabled={!clinicId || loading}>
