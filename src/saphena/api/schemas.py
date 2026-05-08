@@ -16,6 +16,13 @@ from saphena.modules.permissions import RoleCode
 from saphena.services.identity import is_valid_iin
 
 
+def _normalize_non_empty(value: str, *, field: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(field + " must not be empty")
+    return normalized
+
+
 class PersonRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -498,6 +505,11 @@ class SupportThreadCreate(BaseModel):
     request_type: str = Field(default="general", min_length=1, max_length=64)
     priority: SupportPriority = SupportPriority.normal
 
+    @field_validator("subject", "body", "request_type")
+    @classmethod
+    def validate_thread_text_fields(cls, value: str, info):
+        return _normalize_non_empty(value, field=info.field_name)
+
 
 class SupportThreadUpdate(BaseModel):
     status: SupportThreadStatus | None = None
@@ -507,6 +519,11 @@ class SupportThreadUpdate(BaseModel):
 
 class SupportMessageCreate(BaseModel):
     body: str = Field(min_length=1)
+
+    @field_validator("body")
+    @classmethod
+    def validate_message_body(cls, value: str) -> str:
+        return _normalize_non_empty(value, field="body")
 
 
 class SupportMessageRead(BaseModel):
@@ -543,6 +560,11 @@ class SupportTicketCreate(BaseModel):
     clinic_id: int | None = None
     topic: str = Field(min_length=1, max_length=120)
     message: str = Field(min_length=1)
+
+    @field_validator("topic", "message")
+    @classmethod
+    def validate_ticket_text_fields(cls, value: str, info):
+        return _normalize_non_empty(value, field=info.field_name)
 
 
 class SupportTicketRead(BaseModel):

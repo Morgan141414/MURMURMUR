@@ -584,3 +584,60 @@ def test_support_threads_permissions_and_updates() -> None:
     actions = {item["action"] for item in audit_response.json()}
     assert "support_thread.create" in actions
     assert "support_message.create" in actions
+
+
+def test_support_rejects_blank_messages_and_closed_thread_user_reply() -> None:
+    user_iin = build_valid_iin("92010100014")
+    support_iin = build_valid_iin("92010100015")
+
+    register_user(user_iin)
+    user_token = login(user_iin)
+    support = register_user(support_iin)
+    make_superuser(support["id"])
+    support_token = login(support_iin)
+
+    blank_create = client.post(
+        "/api/v1/support/threads",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "subject": "   ",
+            "body": "   ",
+            "priority": "normal",
+            "request_type": "general",
+        },
+    )
+    assert blank_create.status_code == 422, blank_create.text
+
+    create_response = client.post(
+        "/api/v1/support/threads",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "subject": "Need help with schedule",
+            "body": "Please check overlapping slots.",
+            "priority": "high",
+            "request_type": "general",
+        },
+    )
+    assert create_response.status_code == 201, create_response.text
+    thread_id = create_response.json()["id"]
+
+    close_response = client.patch(
+        f"/api/v1/support/threads/{thread_id}",
+        headers={"Authorization": f"Bearer {support_token}"},
+        json={"status": "closed"},
+    )
+    assert close_response.status_code == 200, close_response.text
+
+    user_reply_closed = client.post(
+        f"/api/v1/support/threads/{thread_id}/messages",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={"body": "Any updates?"},
+    )
+    assert user_reply_closed.status_code == 409, user_reply_closed.text
+
+    support_reply_closed = client.post(
+        f"/api/v1/support/threads/{thread_id}/messages",
+        headers={"Authorization": f"Bearer {support_token}"},
+        json={"body": "Closing summary and resolution."},
+    )
+    assert support_reply_closed.status_code == 201, support_reply_closed.text

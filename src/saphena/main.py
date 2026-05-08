@@ -8,6 +8,11 @@ from saphena.core.config import get_settings
 from saphena.core.database import create_schema
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
+HTML_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 def create_app() -> FastAPI:
@@ -32,7 +37,7 @@ def create_app() -> FastAPI:
     if WEB_DIR.exists():
         @app.get("/", include_in_schema=False)
         def index() -> FileResponse:
-            return FileResponse(WEB_DIR / "index.html")
+            return FileResponse(WEB_DIR / "index.html", headers=HTML_NO_CACHE_HEADERS)
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa_fallback(full_path: str) -> FileResponse:
@@ -48,7 +53,7 @@ def create_app() -> FastAPI:
             if candidate.is_file():
                 return FileResponse(candidate)
 
-            return FileResponse(WEB_DIR / "index.html")
+            return FileResponse(WEB_DIR / "index.html", headers=HTML_NO_CACHE_HEADERS)
 
     return app
 
