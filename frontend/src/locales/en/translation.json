@@ -987,6 +987,7 @@
     "unauthorized": "Session expired. Please sign in again.",
     "forbidden": "Insufficient permissions",
     "api": {
+      "invalidCredentials": "Invalid IIN or password.",
       "adminOrSuperAdminOnly": "Admin or Super Admin only",
       "departmentHeadDeleteOnlyDepartmentTeams": "Department head can delete only department teams",
       "insufficientPermissions": "Insufficient permissions",

@@ -143,7 +143,7 @@ export function QuickDealModal({ open, onClose, stageId, pipelineId, onSave }: Q
             <Label className="text-xs text-muted-foreground">Компания</Label>
             <div className="relative">
               <Input
-                placeholder="Название компа"
+                placeholder="Название компании"
                 value={formData.organization_name}
                 onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
                 className="h-9 pr-8"

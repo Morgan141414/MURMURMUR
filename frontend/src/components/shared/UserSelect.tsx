@@ -24,7 +24,7 @@ export function UserSelect({
   users,
   value,
   onChange,
-  placeholder = 'Select user...',
+  placeholder = 'Выберите пользователя',
   className,
   loading,
 }: UserSelectProps) {
@@ -86,16 +86,16 @@ export function UserSelect({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
+              placeholder="Поиск..."
               className="h-8 w-full rounded-md border-0 bg-muted/50 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
           </div>
           <div className="max-h-48 overflow-y-auto">
             {loading && (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground">Loading...</div>
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground">Загрузка...</div>
             )}
             {!loading && filtered.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground">No users found</div>
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground">Пользователи не найдены</div>
             )}
             {filtered.map((u) => (
               <button

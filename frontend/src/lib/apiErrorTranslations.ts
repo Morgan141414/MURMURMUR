@@ -2,6 +2,7 @@ import i18n from '@/i18n'
 
 const API_ERROR_KEY_MAP: Record<string, string> = {
   'Admin or Super Admin only': 'errors.api.adminOrSuperAdminOnly',
+  'Invalid credentials': 'errors.api.invalidCredentials',
   'Department head can delete only department teams': 'errors.api.departmentHeadDeleteOnlyDepartmentTeams',
   'Insufficient permissions': 'errors.api.insufficientPermissions',
   'Insufficient permissions to approve join requests': 'errors.api.insufficientPermissionsApproveJoinRequests',

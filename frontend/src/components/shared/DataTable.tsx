@@ -58,14 +58,14 @@ export function DataTable<T>({
   loading,
   error,
   onRetry,
-  emptyTitle = 'No data',
+  emptyTitle = 'Нет данных',
   emptyDescription,
   emptyIcon,
   emptyAction,
   onRowClick,
   pageSize = 10,
   searchable = false,
-  searchPlaceholder = 'Search...',
+  searchPlaceholder = 'Поиск...',
   globalFilter: externalFilter,
   onGlobalFilterChange,
   bulkActions,
@@ -105,7 +105,7 @@ export function DataTable<T>({
           checked={table.getIsAllPageRowsSelected()}
           onChange={table.getToggleAllPageRowsSelectedHandler()}
           className="h-3.5 w-3.5 rounded border-border accent-primary"
-          aria-label="Select all"
+          aria-label="Выбрать все строки"
         />
       ),
       cell: ({ row }) => (

@@ -88,7 +88,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   'hr.manage_salary': 'Управление зарплатами',
   'hr.view_performance': 'Просмотр эффективности',
   'report.view_own': 'Просмотр своих отчётов',
-  'report.view_team': 'Просмотр отчётов проектовы',
+  'report.view_team': 'Просмотр отчётов команды',
   'report.view_org': 'Просмотр отчётов организации',
   'report.export': 'Экспорт отчётов',
   'report.view_productivity': 'Просмотр продуктивности',

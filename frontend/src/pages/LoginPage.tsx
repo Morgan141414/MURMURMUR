@@ -8,6 +8,7 @@ import { getMe } from '@/api/profile'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
+import { translateApiErrorDetail } from '@/lib/apiErrorTranslations'
 
 const BENEFITS = [
   'Единый вход сотрудников по ИИН',
@@ -90,7 +91,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
       if (Array.isArray(detail)) setErrorMessage(detail.map((item: { msg?: string }) => item.msg ?? '').join('; '))
-      else if (typeof detail === 'string') setErrorMessage(detail)
+      else if (typeof detail === 'string') setErrorMessage(translateApiErrorDetail(detail))
       else setErrorMessage('Не удалось войти. Проверьте ИИН и пароль.')
     } finally {
       setLoading(false)

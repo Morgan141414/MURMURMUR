@@ -102,3 +102,48 @@ http://127.0.0.1:8000/docs
 ```powershell
 python -m pytest
 ```
+
+
+## Production readiness
+
+### Требования окружения
+
+- Python 3.12+
+- Node.js `>=20.19.0 <21` или `>=22.12.0`
+- npm 10+
+
+Node 18 может собрать frontend, но Vite 7 выводит предупреждение и не должен использоваться для production-сборки.
+
+### Переменные окружения
+
+Скопируйте `.env.example` в `.env` и задайте значения под окружение. Для интеграции с Tetis/Projects Control используйте `SAPHENA_TETIS_WEBHOOK_TOKEN`, если webhook должен принимать запросы без bearer-токена superadmin.
+
+### Полная проверка перед релизом
+
+```bash
+python3 -m pytest -q
+cd frontend && npm run lint && npm run build
+```
+
+Если установлен `ruff`, дополнительно:
+
+```bash
+python3 -m ruff check src tests
+```
+
+### Тестовые аккаунты demo seed
+
+Все demo-аккаунты создаются endpoint'ом bootstrap/demo и используют пароль `DemoPass123`:
+
+| Роль | ИИН |
+| --- | --- |
+| Platform Superadmin | `700101000006` |
+| Founder | `700101000016` |
+| Doctor | `700101000026` |
+| Patient | `700101000036` |
+| Reception | `700101000046` |
+| Support Agent | `700101000056` |
+
+### Создание клиники
+
+В текущем MVP создание клиники вынесено в Projects Control/Tetis: [https://tetis1.kz/dashboard?createOrg=1](https://tetis1.kz/dashboard?createOrg=1). M.I.S. принимает синхронизацию клиник через `POST /api/v1/integrations/tetis/clinics`.

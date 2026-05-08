@@ -1,4 +1,4 @@
-const CHUNK_RECOVERY_KEY = 'qtrix_chunk_recovery'
+const CHUNK_RECOVERY_KEY = 'qormed_chunk_recovery'
 const RECOVERY_COOLDOWN_MS = 30_000
 
 function extractMessage(error: unknown): string {

@@ -127,12 +127,10 @@ export default function ProjectDetailPage() {
   )
 
   const handleAddTask = useCallback((columnId: string) => {
-    console.log('[handleAddTask] columnId:', columnId, 'type:', typeof columnId)
     let resolvedColumnId: string | undefined
     if (columnId) {
       resolvedColumnId = columnId
     }
-    console.log('[handleAddTask] resolvedColumnId:', resolvedColumnId)
     setTaskModalColumnId(resolvedColumnId)
     setShowTaskModal(true)
   }, [])
@@ -245,8 +243,6 @@ export default function ProjectDetailPage() {
             </Button>
             <Button size="sm" disabled={archiveMode} onClick={() => {
               const plannedCol = columns.find((col) => col.name.toLowerCase() === 'запланировано')
-              console.log('[Button] Columns:', columns.map(c => ({ id: c.id, name: c.name })))
-              console.log('[Button] plannedCol:', plannedCol)
               setTaskModalColumnId(plannedCol?.id)
               setShowTaskModal(true)
             }}>

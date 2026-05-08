@@ -1668,7 +1668,7 @@ export function OnboardingFlow({ onDismiss, mode = 'create', editOrgId = null }:
 
           <WizardCard>
             <div className="space-y-4">
-              <label className="block text-[12px] font-medium text-white/40">Email участников проектовы</label>
+              <label className="block text-[12px] font-medium text-white/40">Email участников команды</label>
               {inviteEmails.map((email, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 shrink-0">

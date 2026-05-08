@@ -22,7 +22,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo)
+    if (import.meta.env.DEV) {
+      console.error('ErrorBoundary caught:', error, errorInfo)
+    }
   }
 
   handleRetry = () => {
@@ -47,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {i18n.t('errors.generic')}
             </h2>
             <p className="text-white/50 text-sm mb-6">
-              {this.state.error?.message || i18n.t('errors.unexpectedError')}
+              {import.meta.env.DEV && this.state.error?.message ? this.state.error.message : i18n.t('errors.unexpectedError')}
             </p>
             <button
               onClick={this.handleRetry}
