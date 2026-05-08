@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Stethoscope, UserRound } from 'lucide-react'
-import type { Appointment, ClinicMembership, Patient, ScheduleSlot } from '@/api/clinical'
+import type { Appointment, ClinicMembership, ClinicRoom, ClinicService, Patient, ScheduleSlot } from '@/api/clinical'
 import { Button } from '@/components/ui/button'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -28,6 +28,8 @@ interface ClinicCalendarProps {
   appointments: Appointment[]
   employees: ClinicMembership[]
   patients: Patient[]
+  rooms: ClinicRoom[]
+  services: ClinicService[]
   scheduleSlots: ScheduleSlot[]
   onSelectWindow: (startsAt: Date, doctorMembershipId?: number | null) => void
   onSelectSlot: (slot: ScheduleSlot) => void
@@ -102,6 +104,8 @@ export function ClinicCalendar({
   appointments,
   employees,
   patients,
+  rooms,
+  services,
   scheduleSlots,
   onSelectWindow,
   onSelectSlot,
@@ -138,6 +142,8 @@ export function ClinicCalendar({
   const calendarEvents = useMemo<CalendarCellEvent[]>(() => {
     const patientById = new Map(patients.map((patient) => [patient.id, patient]))
     const doctorById = new Map(doctors.map((doctor) => [doctor.id, doctor]))
+    const roomById = new Map(rooms.map((room) => [room.id, room]))
+    const serviceById = new Map(services.map((service) => [service.id, service]))
     const slotEvents = scheduleSlots
       .filter((slot) => !selectedDoctorId || slot.doctor_membership_id === selectedDoctorId)
       .map((slot): CalendarCellEvent => ({
@@ -163,7 +169,7 @@ export function ClinicCalendar({
         source: appointment,
       }))
     return [...slotEvents, ...appointmentEvents].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-  }, [appointments, doctors, patients, scheduleSlots, selectedDoctorId])
+  }, [appointments, doctors, patients, rooms, scheduleSlots, selectedDoctorId, services])
 
   function moveCalendar(direction: -1 | 1) {
     setAnchorDate((current) => addDays(current, direction * (mode === 'week' ? 7 : 1)))

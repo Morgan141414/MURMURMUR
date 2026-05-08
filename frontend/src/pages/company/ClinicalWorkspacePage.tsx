@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import {
   assignClinicEmployee,
   createClinicRoom,
+  createClinicService,
   attachPatientToClinic,
   createAppointment,
   createMedicalRecord,
@@ -17,6 +18,7 @@ import {
   listClinicEmployees,
   listClinicPatients,
   listClinicRooms,
+  listClinicServices,
   listMedicalRecords,
   listRoleCatalog,
   listScheduleSlots,
@@ -30,6 +32,7 @@ import {
   type ClinicDepartment,
   type ClinicMembership,
   type ClinicRoom,
+  type ClinicService,
   type MedicalRecordEntry,
   type ClinicDocumentTemplate,
   type ClinicGeneratedDocument,
@@ -76,6 +79,7 @@ export default function ClinicalWorkspacePage() {
   const [branches, setBranches] = useState<ClinicBranch[]>([])
   const [departments, setDepartments] = useState<ClinicDepartment[]>([])
   const [rooms, setRooms] = useState<ClinicRoom[]>([])
+  const [services, setServices] = useState<ClinicService[]>([])
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
@@ -87,11 +91,15 @@ export default function ClinicalWorkspacePage() {
 
   const [appointmentPatientId, setAppointmentPatientId] = useState('')
   const [appointmentDoctorMembershipId, setAppointmentDoctorMembershipId] = useState('')
+  const [appointmentRoomId, setAppointmentRoomId] = useState('')
+  const [appointmentServiceId, setAppointmentServiceId] = useState('')
   const [appointmentDate, setAppointmentDate] = useState('')
   const [appointmentDuration, setAppointmentDuration] = useState('30')
   const [appointmentReason, setAppointmentReason] = useState('')
 
   const [slotDoctorMembershipId, setSlotDoctorMembershipId] = useState('')
+  const [slotRoomId, setSlotRoomId] = useState('')
+  const [slotServiceId, setSlotServiceId] = useState('')
   const [slotDate, setSlotDate] = useState('')
   const [slotDuration, setSlotDuration] = useState('30')
   const [slotNote, setSlotNote] = useState('')
@@ -117,6 +125,11 @@ export default function ClinicalWorkspacePage() {
   const [roomDepartmentId, setRoomDepartmentId] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
   const [roomTitle, setRoomTitle] = useState('')
+
+  const [serviceDepartmentId, setServiceDepartmentId] = useState('')
+  const [serviceTitle, setServiceTitle] = useState('')
+  const [serviceDuration, setServiceDuration] = useState('30')
+  const [servicePrice, setServicePrice] = useState('')
 
   const [appointmentStatusFilter, setAppointmentStatusFilter] = useState<'all' | string>('all')
   const [appointmentDoctorFilter, setAppointmentDoctorFilter] = useState<'all' | string>('all')
@@ -145,6 +158,7 @@ export default function ClinicalWorkspacePage() {
         branchesResponse,
         departmentsResponse,
         roomsResponse,
+        servicesResponse,
         docTemplatesResponse,
         generatedDocsResponse,
       ] = await Promise.all([
@@ -157,6 +171,7 @@ export default function ClinicalWorkspacePage() {
         listClinicBranches(clinicId),
         listClinicDepartments(clinicId),
         listClinicRooms(clinicId),
+        listClinicServices(clinicId),
         listClinicDocumentTemplates(clinicId),
         listClinicGeneratedDocuments(clinicId),
       ])
@@ -169,6 +184,7 @@ export default function ClinicalWorkspacePage() {
       setBranches(branchesResponse.data)
       setDepartments(departmentsResponse.data)
       setRooms(roomsResponse.data)
+      setServices(servicesResponse.data)
       setDocTemplates(docTemplatesResponse.data)
       setGeneratedDocs(generatedDocsResponse.data)
     } catch {
@@ -228,16 +244,22 @@ export default function ClinicalWorkspacePage() {
     const doctorMembershipId = appointmentDoctorMembershipId
       ? Number(appointmentDoctorMembershipId)
       : null
+    const roomId = appointmentRoomId ? Number(appointmentRoomId) : null
+    const serviceId = appointmentServiceId ? Number(appointmentServiceId) : null
     try {
       await createAppointment(clinicId, {
         patient_profile_id: patientId,
         doctor_membership_id: doctorMembershipId,
+        room_id: roomId,
+        service_id: serviceId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         reason: appointmentReason || undefined,
       })
       toast.success('Запись создана')
       setAppointmentDate('')
+      setAppointmentRoomId('')
+      setAppointmentServiceId('')
       setAppointmentReason('')
       await refreshClinicalData()
     } catch {
@@ -260,6 +282,10 @@ export default function ClinicalWorkspacePage() {
     setAppointmentDoctorMembershipId(String(slot.doctor_membership_id))
     setSlotDoctorMembershipId(String(slot.doctor_membership_id))
     setSlotDate(toDateTimeLocalValue(new Date(slot.starts_at)))
+    setAppointmentRoomId(slot.room_id ? String(slot.room_id) : '')
+    setAppointmentServiceId(slot.service_id ? String(slot.service_id) : '')
+    setSlotRoomId(slot.room_id ? String(slot.room_id) : '')
+    setSlotServiceId(slot.service_id ? String(slot.service_id) : '')
     const durationMinutes = Math.max(
       15,
       Math.round((new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()) / 60000),
@@ -291,15 +317,21 @@ export default function ClinicalWorkspacePage() {
     }
     const startsAt = new Date(slotDate)
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000)
+    const roomId = slotRoomId ? Number(slotRoomId) : null
+    const serviceId = slotServiceId ? Number(slotServiceId) : null
     try {
       await createScheduleSlot(clinicId, {
         doctor_membership_id: doctorMembershipId,
+        room_id: roomId,
+        service_id: serviceId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         note: slotNote || undefined,
       })
       toast.success('Слот расписания создан')
       setSlotDate('')
+      setSlotRoomId('')
+      setSlotServiceId('')
       setSlotNote('')
       await refreshClinicalData()
     } catch {
@@ -416,6 +448,35 @@ export default function ClinicalWorkspacePage() {
       await refreshClinicalData()
     } catch {
       toast.error('Не удалось назначить сотрудника. Проверьте ИИН и доступы.')
+    }
+  }
+
+  async function handleCreateService() {
+    if (!clinicId) return
+    if (!serviceTitle.trim()) {
+      toast.error('??????? ???????? ??????')
+      return
+    }
+    const durationMinutes = Number(serviceDuration) || 30
+    const normalizedCode = serviceTitle
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9?-??]+/gi, '_')
+      .replace(/^_+|_+$/g, '')
+    try {
+      await createClinicService(clinicId, {
+        department_id: serviceDepartmentId ? Number(serviceDepartmentId) : null,
+        code: normalizedCode || `service_${Date.now()}`,
+        title: serviceTitle.trim(),
+        duration_minutes: durationMinutes,
+        price: servicePrice ? Number(servicePrice) : null,
+      })
+      toast.success('?????? ?????????')
+      setServiceTitle('')
+      setServicePrice('')
+      await refreshClinicalData()
+    } catch {
+      toast.error('?? ??????? ??????? ??????')
     }
   }
 
@@ -544,6 +605,7 @@ export default function ClinicalWorkspacePage() {
     && new Date(appointment.starts_at).getTime() >= Date.now(),
   )
   const clinicRoles = roleCatalog.filter((role) => role.scope === 'clinic')
+  const activeServices = services.filter((service) => service.is_active)
   const branchDepartmentOptions = departments.filter(
     (department) => !roomBranchId || String(department.branch_id) === roomBranchId,
   )
@@ -858,6 +920,8 @@ export default function ClinicalWorkspacePage() {
         appointments={appointments}
         employees={employees}
         patients={patients}
+        rooms={rooms}
+        services={activeServices}
         scheduleSlots={scheduleSlots}
         onSelectWindow={handleCalendarWindowSelect}
         onSelectSlot={handleScheduleSlotSelect}

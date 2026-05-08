@@ -28,6 +28,8 @@ export interface Patient {
 export interface AppointmentCreatePayload {
   patient_profile_id: number
   doctor_membership_id?: number | null
+  room_id?: number | null
+  service_id?: number | null
   starts_at: string
   ends_at: string
   reason?: string | null
@@ -120,6 +122,8 @@ export interface ClinicRoom {
 
 export interface ScheduleSlotCreatePayload {
   doctor_membership_id: number
+  room_id?: number | null
+  service_id?: number | null
   starts_at: string
   ends_at: string
   status?: 'available' | 'booked' | 'blocked' | 'canceled'
@@ -130,6 +134,8 @@ export interface ScheduleSlot {
   id: number
   clinic_id: number
   doctor_membership_id: number
+  room_id?: number | null
+  service_id?: number | null
   starts_at: string
   ends_at: string
   status: 'available' | 'booked' | 'blocked' | 'canceled'
@@ -182,6 +188,26 @@ export interface ClinicGeneratedDocument {
   title: string
   body: string
   created_at: string
+}
+
+
+export interface ClinicServiceCreatePayload {
+  department_id?: number | null
+  code: string
+  title: string
+  duration_minutes?: number
+  price?: number | null
+}
+
+export interface ClinicService {
+  id: number
+  clinic_id: number
+  department_id?: number | null
+  code: string
+  title: string
+  duration_minutes: number
+  price?: number | null
+  is_active: boolean
 }
 
 export interface UserClinicSummary {
@@ -268,6 +294,14 @@ export function listClinicRooms(clinicId: number) {
 
 export function createClinicRoom(clinicId: number, payload: ClinicRoomCreatePayload) {
   return api.post<ClinicRoom>(`/clinics/${clinicId}/rooms`, payload)
+}
+
+export function listClinicServices(clinicId: number) {
+  return api.get<ClinicService[]>(`/clinics/${clinicId}/services`)
+}
+
+export function createClinicService(clinicId: number, payload: ClinicServiceCreatePayload) {
+  return api.post<ClinicService>(`/clinics/${clinicId}/services`, payload)
 }
 
 export function createScheduleSlot(clinicId: number, payload: ScheduleSlotCreatePayload) {
