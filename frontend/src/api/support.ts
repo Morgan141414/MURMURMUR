@@ -39,35 +39,127 @@ export interface SupportThreadCreatePayload {
   request_meta?: Record<string, unknown>;
 }
 
-export function listPersonalThreads() {
-  return api.get<SupportThread[]>("/support/threads");
+interface LegacyTicket {
+  id: number;
+  clinic_id: number | null;
+  topic: string;
+  status: "new" | "in_progress" | "closed";
+  created_at: string;
+  updated_at: string;
 }
 
-export function getPersonalThread(threadId: number | string) {
-  return api.get<SupportThread>(`/support/threads/${threadId}`);
+function isLegacyFallbackError(error: unknown) {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === 404 || status === 405;
 }
 
-export function createPersonalThread(data: SupportThreadCreatePayload) {
-  return api.post<SupportThread>("/support/threads", {
-    clinic_id: data.clinic_id ?? null,
-    subject: data.subject,
-    body: data.body,
-    request_type: data.request_type ?? "general",
-    priority: data.priority ?? "normal",
-  });
+function mapLegacyStatus(status: LegacyTicket["status"]): SupportThreadStatus {
+  if (status === "in_progress") return "in_progress";
+  if (status === "closed") return "closed";
+  return "open";
 }
 
-export function sendPersonalMessage(threadId: number | string, data: { body: string; files?: File[] }) {
-  return api.post<SupportMessage>(`/support/threads/${threadId}/messages`, {
-    body: data.body,
-  });
+function mapThreadStatusToLegacy(status: SupportThreadStatus | undefined): LegacyTicket["status"] {
+  if (status === "closed") return "closed";
+  if (status === "in_progress" || status === "answered") return "in_progress";
+  return "new";
 }
 
-export function updatePersonalThread(
+function legacyToThread(ticket: LegacyTicket): SupportThread {
+  return {
+    id: ticket.id,
+    requester_account_id: 0,
+    clinic_id: ticket.clinic_id,
+    subject: ticket.topic,
+    request_type: "general",
+    status: mapLegacyStatus(ticket.status),
+    priority: "normal",
+    assigned_to_account_id: null,
+    last_message_at: ticket.updated_at,
+    created_at: ticket.created_at,
+    updated_at: ticket.updated_at,
+    messages: [],
+  };
+}
+
+export async function listPersonalThreads() {
+  try {
+    return await api.get<SupportThread[]>("/support/threads");
+  } catch (error) {
+    if (!isLegacyFallbackError(error)) throw error;
+    const legacy = await api.get<LegacyTicket[]>("/support/tickets");
+    return { ...legacy, data: legacy.data.map(legacyToThread) };
+  }
+}
+
+export async function getPersonalThread(threadId: number | string) {
+  try {
+    return await api.get<SupportThread>(`/support/threads/${threadId}`);
+  } catch (error) {
+    if (!isLegacyFallbackError(error)) throw error;
+    const legacy = await api.get<LegacyTicket[]>("/support/tickets");
+    const found = legacy.data.find((item) => String(item.id) === String(threadId));
+    if (!found) throw error;
+    return { ...legacy, data: legacyToThread(found) };
+  }
+}
+
+export async function createPersonalThread(data: SupportThreadCreatePayload) {
+  try {
+    return await api.post<SupportThread>("/support/threads", {
+      clinic_id: data.clinic_id ?? null,
+      subject: data.subject,
+      body: data.body,
+      request_type: data.request_type ?? "general",
+      priority: data.priority ?? "normal",
+    });
+  } catch (error) {
+    if (!isLegacyFallbackError(error)) throw error;
+    const legacy = await api.post<LegacyTicket>("/support/tickets", {
+      clinic_id: data.clinic_id ?? null,
+      topic: data.subject,
+      message: data.body,
+    });
+    return { ...legacy, data: legacyToThread(legacy.data) };
+  }
+}
+
+export async function sendPersonalMessage(threadId: number | string, data: { body: string; files?: File[] }) {
+  try {
+    return await api.post<SupportMessage>(`/support/threads/${threadId}/messages`, {
+      body: data.body,
+    });
+  } catch (error) {
+    if (!isLegacyFallbackError(error)) throw error;
+    await api.patch<LegacyTicket>(`/support/tickets/${threadId}`, {
+      status: "in_progress",
+      message: data.body,
+    });
+    return {
+      data: {
+        id: Date.now(),
+        thread_id: Number(threadId),
+        author_account_id: 0,
+        body: data.body,
+        created_at: new Date().toISOString(),
+      },
+    };
+  }
+}
+
+export async function updatePersonalThread(
   threadId: number | string,
   data: { status?: SupportThreadStatus; priority?: SupportPriority; assigned_to_account_id?: number | null },
 ) {
-  return api.patch<SupportThread>(`/support/threads/${threadId}`, data);
+  try {
+    return await api.patch<SupportThread>(`/support/threads/${threadId}`, data);
+  } catch (error) {
+    if (!isLegacyFallbackError(error)) throw error;
+    const legacy = await api.patch<LegacyTicket>(`/support/tickets/${threadId}`, {
+      status: mapThreadStatusToLegacy(data.status),
+    });
+    return { ...legacy, data: legacyToThread(legacy.data) };
+  }
 }
 
 // Compatibility wrappers for old org-based UI calls.
