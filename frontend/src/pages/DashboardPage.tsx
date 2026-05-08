@@ -245,7 +245,8 @@ function PersonalDashboard() {
 
 function OrgDashboard() {
   const { t } = useTranslation()
-  const { activeOrgId, activeOrg } = useOrgStore()
+  const { activeOrgId, activeOrg, orgs } = useOrgStore()
+  const setActiveOrg = useOrgStore((s) => s.setActiveOrg)
   const orgId = activeOrgId!
   const current = activeOrg()
   const navigate = useNavigate()
@@ -483,13 +484,22 @@ function OrgDashboard() {
 
 export default function DashboardPage() {
   const location = useLocation()
-  const { activeOrgId, activeOrg } = useOrgStore()
+  const { activeOrgId, activeOrg, orgs } = useOrgStore()
+  const setActiveOrg = useOrgStore((s) => s.setActiveOrg)
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin)
   const platformRole = useAuthStore((s) => s.platformRole)
   useMyOrgs()
   const current = activeOrg()
   const hasInactiveSelectedOrg = !!current && current.isActive === false
   const forceCreateOrg = new URLSearchParams(location.search).get('createOrg') === '1'
+
+  useEffect(() => {
+    if (activeOrgId) return
+    const firstActive = orgs.find((item) => item.isActive !== false)
+    if (firstActive) {
+      setActiveOrg(firstActive.orgId)
+    }
+  }, [activeOrgId, orgs, setActiveOrg])
 
   if (!forceCreateOrg && ((activeOrgId && !hasInactiveSelectedOrg) || isSuperAdmin || platformRole)) {
     return <RoleRedirectDashboard />

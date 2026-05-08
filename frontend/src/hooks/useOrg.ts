@@ -21,26 +21,32 @@ export function useMyOrgs() {
   return useQuery({
     queryKey: queryKeys.org.myOrgs(),
     queryFn: async () => {
-      const { data } = await listMyOrgs()
-      if (data.length > 0) {
-        setOrgs(
-          data.map((o) => ({
-            orgId: o.id,
-            orgName: o.name,
-            role: o.role,
-            logoUrl: o.logo_url ?? undefined,
-            isActive: o.is_active ?? true,
-            moderationStatus: o.moderation_status ?? 'pending',
-            moderationComment: o.moderation_comment ?? null,
-          })),
-        )
-        return data
+      // 1) Try org-based runtime
+      try {
+        const { data } = await listMyOrgs()
+        if (data.length > 0) {
+          setOrgs(
+            data.map((o) => ({
+              orgId: o.id,
+              orgName: o.name,
+              role: o.role,
+              logoUrl: o.logo_url ?? undefined,
+              isActive: o.is_active ?? true,
+              moderationStatus: o.moderation_status ?? 'pending',
+              moderationComment: o.moderation_comment ?? null,
+            })),
+          )
+          return data
+        }
+      } catch {
+        // Ignore and continue to clinic fallback.
       }
 
-      // Fallback for clinic-first runtime where /orgs may be empty but /clinics is populated.
+      // 2) Fallback for clinic-first runtime where /orgs is unavailable or empty.
       const clinicsResponse = await listUserClinics()
       const clinics = clinicsResponse.data
       const myAccountId = Number(useAuthStore.getState().userId || 0)
+
       const clinicOrgs = await Promise.all(
         clinics.map(async (clinic) => {
           let role: OrgRole = 'member'
@@ -65,9 +71,11 @@ export function useMyOrgs() {
           }
         }),
       )
+
       setOrgs(clinicOrgs)
       return []
     },
+    retry: 0,
   })
 }
 
