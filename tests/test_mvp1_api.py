@@ -612,13 +612,15 @@ def test_support_rejects_blank_messages_and_closed_thread_user_reply() -> None:
         "/api/v1/support/threads",
         headers={"Authorization": f"Bearer {user_token}"},
         json={
-            "subject": "Need help with schedule",
-            "body": "Please check overlapping slots.",
+            "subject": "  Need help with schedule  ",
+            "body": "  Please check overlapping slots.  ",
             "priority": "high",
-            "request_type": "general",
+            "request_type": "  general  ",
         },
     )
     assert create_response.status_code == 201, create_response.text
+    assert create_response.json()["subject"] == "Need help with schedule"
+    assert create_response.json()["request_type"] == "general"
     thread_id = create_response.json()["id"]
 
     close_response = client.patch(
@@ -641,3 +643,11 @@ def test_support_rejects_blank_messages_and_closed_thread_user_reply() -> None:
         json={"body": "Closing summary and resolution."},
     )
     assert support_reply_closed.status_code == 201, support_reply_closed.text
+
+
+def test_spa_index_no_cache_headers() -> None:
+    response = client.get("/")
+    assert response.status_code == 200, response.text
+    assert response.headers.get("cache-control") == "no-store, no-cache, must-revalidate, max-age=0"
+    assert response.headers.get("pragma") == "no-cache"
+    assert response.headers.get("expires") == "0"

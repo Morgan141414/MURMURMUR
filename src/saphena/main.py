@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -17,15 +18,18 @@ HTML_NO_CACHE_HEADERS = {
 
 def create_app() -> FastAPI:
     settings = get_settings()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        create_schema()
+        yield
+
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
         description="API-first backend for Saphena 2.0 MVP1.",
+        lifespan=lifespan,
     )
-
-    @app.on_event("startup")
-    def on_startup() -> None:
-        create_schema()
 
     app.include_router(health.router)
     app.include_router(auth.router, prefix="/api/v1")
