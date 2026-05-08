@@ -260,6 +260,14 @@ class BootstrapDemoResponse(BaseModel):
     superadmin_password: str
     founder_iin: str
     founder_password: str
+    doctor_iin: str
+    doctor_password: str
+    patient_iin: str
+    patient_password: str
+    reception_iin: str
+    reception_password: str
+    support_iin: str
+    support_password: str
 
 
 class PatientCreate(BaseModel):

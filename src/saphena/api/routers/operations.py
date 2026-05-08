@@ -146,6 +146,58 @@ def _ensure_service(
     return service
 
 
+def _account_id_for_patient(db: DbSession, patient_profile_id: int) -> int | None:
+    patient = db.get(PatientProfile, patient_profile_id)
+    if patient is None:
+        return None
+    account = db.scalar(select(Account).where(Account.person_id == patient.person_id))
+    return account.id if account else None
+
+
+def _notify_clinic_members(
+    db: DbSession,
+    *,
+    clinic_id: int,
+    title: str,
+    body: str,
+    permission_roles: set[RoleCode] | None = None,
+    exclude_account_ids: set[int] | None = None,
+) -> None:
+    excluded = exclude_account_ids or set()
+    stmt = select(ClinicMembership).where(
+        ClinicMembership.clinic_id == clinic_id,
+        ClinicMembership.is_active.is_(True),
+    )
+    for membership in db.scalars(stmt).all():
+        if permission_roles is not None and membership.role_code not in permission_roles:
+            continue
+        if membership.account_id in excluded:
+            continue
+        create_notification(db, account_id=membership.account_id, title=title, body=body)
+
+
+def _notify_appointment_participants(
+    db: DbSession,
+    *,
+    appointment: Appointment,
+    title: str,
+    body: str,
+    actor_account_id: int | None = None,
+) -> None:
+    recipients: set[int] = set()
+    patient_account_id = _account_id_for_patient(db, appointment.patient_profile_id)
+    if patient_account_id is not None:
+        recipients.add(patient_account_id)
+    if appointment.doctor_membership_id is not None:
+        doctor = db.get(ClinicMembership, appointment.doctor_membership_id)
+        if doctor is not None:
+            recipients.add(doctor.account_id)
+    if actor_account_id is not None:
+        recipients.discard(actor_account_id)
+    for account_id in recipients:
+        create_notification(db, account_id=account_id, title=title, body=body)
+
+
 @router.get("/clinics/{clinic_id}/branches", response_model=list[ClinicBranchRead])
 def list_clinic_branches(
     clinic_id: int, db: DbSession, current_account: CurrentAccount
@@ -829,14 +881,20 @@ def create_appointment(
         ends_at=payload.ends_at,
         appointment_status=item.status,
     )
-    create_notification(
+    _notify_appointment_participants(
         db,
-        account_id=current_account.id,
+        appointment=item,
         title="Appointment created",
-        body=(
-            f"Appointment #{item.id} for clinic #{clinic_id} "
-            f"starts at {item.starts_at.isoformat()}"
-        ),
+        body=f"Appointment #{item.id} starts at {item.starts_at.isoformat()}",
+        actor_account_id=current_account.id,
+    )
+    _notify_clinic_members(
+        db,
+        clinic_id=clinic_id,
+        title="Appointment created",
+        body=f"Appointment #{item.id} was created for clinic #{clinic_id}",
+        permission_roles={RoleCode.clinic_founder, RoleCode.clinic_ceo, RoleCode.reception_admin},
+        exclude_account_ids={current_account.id},
     )
     audit(
         db,
@@ -1003,11 +1061,20 @@ def update_appointment(
         appointment_status=item.status,
     )
     if payload.status is not None and payload.status != previous_status:
-        create_notification(
+        _notify_appointment_participants(
             db,
-            account_id=current_account.id,
+            appointment=item,
             title="Appointment status updated",
             body=f"Appointment #{item.id} status changed to {item.status.value}",
+            actor_account_id=current_account.id,
+        )
+        _notify_clinic_members(
+            db,
+            clinic_id=clinic_id,
+            title="Appointment status updated",
+            body=f"Appointment #{item.id} status changed to {item.status.value}",
+            permission_roles={RoleCode.clinic_founder, RoleCode.clinic_ceo, RoleCode.reception_admin},
+            exclude_account_ids={current_account.id},
         )
     audit(
         db,
@@ -1106,6 +1173,13 @@ def create_medical_record(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="appointment_id does not belong to this patient",
             )
+    if payload.author_membership_id is not None:
+        author_membership = db.get(ClinicMembership, payload.author_membership_id)
+        if author_membership is None or author_membership.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="author_membership_id is not valid for selected clinic",
+            )
 
     item = MedicalRecordEntry(
         clinic_id=clinic_id,
@@ -1120,6 +1194,14 @@ def create_medical_record(
     )
     db.add(item)
     db.flush()
+    patient_account_id = _account_id_for_patient(db, payload.patient_profile_id)
+    if patient_account_id is not None and patient_account_id != current_account.id:
+        create_notification(
+            db,
+            account_id=patient_account_id,
+            title="Medical record updated",
+            body=f"A new medical record entry was added in clinic #{clinic_id}",
+        )
     audit(
         db,
         action="medical_record.create",
@@ -1278,8 +1360,11 @@ def render_document_from_template(
         context.update({str(k): str(v) for k, v in payload.extras.items()})
 
     if payload.patient_profile_id is not None:
+        _ensure_patient_attached(db, clinic_id=clinic_id, patient_profile_id=payload.patient_profile_id)
         patient = db.get(PatientProfile, payload.patient_profile_id)
-        if patient is not None and patient.person is not None:
+        if patient is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient_profile_id")
+        if patient.person is not None:
             context.update(
                 {
                     "patient.id": str(patient.id),
@@ -1302,8 +1387,11 @@ def render_document_from_template(
 
     if payload.appointment_id is not None:
         appointment = db.get(Appointment, payload.appointment_id)
-        if appointment is not None:
-            context.update(
+        if appointment is None or appointment.clinic_id != clinic_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid appointment_id")
+        if payload.patient_profile_id is not None and appointment.patient_profile_id != payload.patient_profile_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="appointment_id does not belong to this patient")
+        context.update(
                 {
                     "appointment.id": str(appointment.id),
                     "appointment.starts_at": appointment.starts_at.isoformat(),
@@ -1319,8 +1407,11 @@ def render_document_from_template(
 
     if payload.medical_record_entry_id is not None:
         record = db.get(MedicalRecordEntry, payload.medical_record_entry_id)
-        if record is not None:
-            context.update(
+        if record is None or record.clinic_id != clinic_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid medical_record_entry_id")
+        if payload.patient_profile_id is not None and record.patient_profile_id != payload.patient_profile_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="medical_record_entry_id does not belong to this patient")
+        context.update(
                 {
                     "record.id": str(record.id),
                     "record.complaint": record.complaint or "",
@@ -1351,6 +1442,15 @@ def render_document_from_template(
     )
     db.add(item)
     db.flush()
+    if item.patient_profile_id is not None:
+        patient_account_id = _account_id_for_patient(db, item.patient_profile_id)
+        if patient_account_id is not None and patient_account_id != current_account.id:
+            create_notification(
+                db,
+                account_id=patient_account_id,
+                title="Document generated",
+                body=f"Document '{item.title}' was generated in clinic #{clinic_id}",
+            )
     audit(
         db,
         action="document.rendered",
@@ -1832,7 +1932,7 @@ def mark_notification_read(
     if item is None or item.account_id != current_account.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     if item.read_at is None:
-        item.read_at = item.updated_at
+        item.read_at = utcnow()
         db.add(item)
         db.commit()
         db.refresh(item)
@@ -1848,7 +1948,7 @@ def mark_all_notifications_read(db: DbSession, current_account: CurrentAccount) 
             Notification.read_at.is_(None),
         )
     ).all():
-        item.read_at = item.updated_at
+        item.read_at = utcnow()
         db.add(item)
         updated += 1
     db.commit()

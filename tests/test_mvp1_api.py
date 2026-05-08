@@ -453,6 +453,27 @@ def test_clinic_patient_appointment_and_medical_record_flow() -> None:
     assert generated_list_response.status_code == 200, generated_list_response.text
     assert any(item["code"] == "initial_exam" for item in generated_list_response.json())
 
+    invalid_document_response = client.post(
+        f"/api/v1/clinics/{clinic_id}/documents/render",
+        headers={"Authorization": f"Bearer {founder_token}"},
+        json={
+            "template_code": "initial_exam",
+            "patient_profile_id": patient_id,
+            "appointment_id": appointment_id + 9999,
+        },
+    )
+    assert invalid_document_response.status_code == 400, invalid_document_response.text
+
+    patient_token = login(patient_iin, "PatientPass123")
+    patient_notifications_response = client.get(
+        "/api/v1/notifications",
+        headers={"Authorization": f"Bearer {patient_token}"},
+    )
+    assert patient_notifications_response.status_code == 200, patient_notifications_response.text
+    patient_notification_titles = {item["title"] for item in patient_notifications_response.json()}
+    assert "Medical record updated" in patient_notification_titles
+    assert "Document generated" in patient_notification_titles
+
     overlap_response = client.post(
         f"/api/v1/clinics/{clinic_id}/appointments",
         headers={"Authorization": f"Bearer {founder_token}"},
@@ -643,6 +664,51 @@ def test_support_rejects_blank_messages_and_closed_thread_user_reply() -> None:
         json={"body": "Closing summary and resolution."},
     )
     assert support_reply_closed.status_code == 201, support_reply_closed.text
+
+
+def test_bootstrap_demo_provisions_full_mvp1_dataset() -> None:
+    response = client.post("/api/v1/bootstrap/demo")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["doctor_iin"] == "700101000026"
+    assert payload["patient_iin"] == "700101000036"
+    assert payload["reception_iin"] == "700101000046"
+    assert payload["support_iin"] == "700101000056"
+
+    founder_token = login(payload["founder_iin"], payload["founder_password"])
+    clinics_response = client.get(
+        "/api/v1/clinics",
+        headers={"Authorization": f"Bearer {founder_token}"},
+    )
+    assert clinics_response.status_code == 200, clinics_response.text
+    clinic_id = next(item["id"] for item in clinics_response.json() if item["name"] == "Saphena Demo Clinic")
+
+    for path in (
+        "branches",
+        "departments",
+        "rooms",
+        "services",
+        "patients",
+        "appointments",
+        "schedule/slots",
+        "medical-records",
+        "documents/templates",
+        "documents/generated",
+    ):
+        item_response = client.get(
+            f"/api/v1/clinics/{clinic_id}/{path}",
+            headers={"Authorization": f"Bearer {founder_token}"},
+        )
+        assert item_response.status_code == 200, item_response.text
+        assert len(item_response.json()) >= 1, path
+
+    support_token = login(payload["support_iin"], payload["support_password"])
+    support_threads_response = client.get(
+        "/api/v1/support/threads",
+        headers={"Authorization": f"Bearer {support_token}"},
+    )
+    assert support_threads_response.status_code == 200, support_threads_response.text
+    assert any(item["assigned_to_account_id"] is not None for item in support_threads_response.json())
 
 
 def test_spa_index_no_cache_headers() -> None:
