@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
 import { useContextStore } from '@/stores/contextStore'
 import { ContextSwitcher } from './ContextSwitcher'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 import { getNavForShell, filterNavByRole } from '@/config/navigation'
 import type { NavItem } from '@/config/navigation'
 import { AvatarImage } from '@/components/shared/AvatarImage'
@@ -128,7 +129,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
 
         {/* Context Switcher */}
         <div className="border-b border-border px-3 py-3">
-          <ContextSwitcher onCreateOrg={() => { navigate('/dashboard?createOrg=1'); onClose() }} />
+          <ContextSwitcher onCreateOrg={() => { redirectToClinicCreation(); onClose() }} />
         </div>
 
         {/* Navigation */}

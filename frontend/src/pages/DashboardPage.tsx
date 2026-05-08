@@ -37,6 +37,7 @@ import { StatCard } from '@/components/shared/StatCard'
 import { ActivityItem } from '@/components/shared/ActivityItem'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 
 /* ═══════════════════════════════════════════════════
    PERSONAL DASHBOARD (no org selected)
@@ -53,6 +54,12 @@ function PersonalDashboard() {
   )
   const forceCreateOrg = new URLSearchParams(location.search).get('createOrg') === '1'
   const editOrgId = new URLSearchParams(location.search).get('editOrg')
+
+  useEffect(() => {
+    if (forceCreateOrg) {
+      redirectToClinicCreation()
+    }
+  }, [forceCreateOrg])
   const selectedOrg = activeOrg()
 
   const handleDismissOnboarding = useCallback(() => {
@@ -63,7 +70,11 @@ function PersonalDashboard() {
     }
   }, [forceCreateOrg, navigate])
 
-  if (forceCreateOrg || (orgs.length === 0 && !onboardingDismissed)) {
+  if (forceCreateOrg) {
+    return null
+  }
+
+  if (orgs.length === 0 && !onboardingDismissed) {
     return (
       <OnboardingFlow
         onDismiss={handleDismissOnboarding}
@@ -141,7 +152,7 @@ function PersonalDashboard() {
                   onClick={() => {
                     if (!selectedOrg?.orgId) return
                     setActiveOrg(selectedOrg.orgId)
-                    navigate(`/dashboard?createOrg=1&editOrg=${selectedOrg.orgId}`)
+                    redirectToClinicCreation()
                   }}
                 >
                   <Wrench className="mr-1.5 h-4 w-4" />
@@ -191,7 +202,7 @@ function PersonalDashboard() {
                       onClick={(event) => {
                         event.stopPropagation()
                         setActiveOrg(org.orgId)
-                        navigate(`/dashboard?createOrg=1&editOrg=${org.orgId}`)
+                        redirectToClinicCreation()
                       }}
                     >
                       <Wrench className="mr-1.5 h-3.5 w-3.5" />

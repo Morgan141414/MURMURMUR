@@ -5,6 +5,7 @@ import { Building2, ChevronDown, Plus, User, Check } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
 import { useMyOrgs } from '@/hooks/useOrg'
 import { cn } from '@/lib/utils'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 import { useContextStore } from '@/stores/contextStore'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -52,7 +53,7 @@ export function OrgSwitcher({ onCreateOrg }: { onCreateOrg?: () => void }) {
       onCreateOrg()
       return
     }
-    navigate('/dashboard?createOrg=1')
+    redirectToClinicCreation()
   }
 
   return (

@@ -6,6 +6,7 @@ import {
   LogOut, PanelLeftClose,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 import { useTranslation } from 'react-i18next'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -117,7 +118,7 @@ export function Sidebar() {
       {/* Org Switcher */}
       {!collapsed && (
         <div className="px-3 pb-2">
-          <OrgSwitcher onCreateOrg={() => navigate('/dashboard?createOrg=1')} />
+          <OrgSwitcher onCreateOrg={redirectToClinicCreation} />
         </div>
       )}
 

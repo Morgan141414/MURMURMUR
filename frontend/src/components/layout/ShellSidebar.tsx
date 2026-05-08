@@ -18,6 +18,7 @@ import type { NavItem } from '@/config/navigation'
 import { AvatarImage } from '@/components/shared/AvatarImage'
 import { listMessengerThreads } from '@/api/messenger'
 import { CRMSidebar } from '@/components/crm/CRMSidebar'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 
 /* ── Shell icon map ── */
 const SHELL_ICONS: Record<string, LucideIcon> = {
@@ -219,7 +220,7 @@ function MainSidebar() {
       {/* ═══ Context Switcher ═══ */}
       {!collapsed && (
         <div className="px-3 pb-2">
-          <ContextSwitcher onCreateOrg={() => navigate('/dashboard?createOrg=1')} />
+          <ContextSwitcher onCreateOrg={redirectToClinicCreation} />
         </div>
       )}
 

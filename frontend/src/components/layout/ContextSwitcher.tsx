@@ -10,6 +10,7 @@ import { useMyOrgs } from '@/hooks/useOrg'
 import { cn } from '@/lib/utils'
 import { ROLE_LABELS } from '@/types'
 import { resolveMediaUrl } from '@/lib/media'
+import { redirectToClinicCreation } from '@/config/externalLinks'
 
 function CompanyLogo({ logoUrl, name, className }: { logoUrl?: string; name?: string; className?: string }) {
   const src = resolveMediaUrl(logoUrl)
@@ -105,7 +106,7 @@ export function ContextSwitcher({ onCreateOrg }: { onCreateOrg?: () => void }) {
       onCreateOrg()
       return
     }
-    navigate('/dashboard?createOrg=1')
+    redirectToClinicCreation()
   }
 
   function handleOrgSelect(orgId: string) {
