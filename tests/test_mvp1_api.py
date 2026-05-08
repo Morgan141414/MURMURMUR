@@ -711,6 +711,80 @@ def test_bootstrap_demo_provisions_full_mvp1_dataset() -> None:
     assert any(item["assigned_to_account_id"] is not None for item in support_threads_response.json())
 
 
+def test_tetis_clinic_sync_creates_founder_clinic_and_is_idempotent() -> None:
+    moderator_iin = build_valid_iin("92010100016")
+    founder_iin = build_valid_iin("92010100017")
+    moderator = register_user(moderator_iin)
+    make_superuser(moderator["id"])
+    moderator_token = login(moderator_iin)
+
+    payload = {
+        "external_id": "tetis-mvp-001",
+        "status": "approved",
+        "name": "Tetis Synced Clinic",
+        "legal_name": "Tetis Synced Clinic LLP",
+        "bin_iin": "990140000004",
+        "address": "Almaty, Tetis 10",
+        "contacts": "+77000000444",
+        "founder": {
+            "iin": founder_iin,
+            "first_name": "Tetis",
+            "last_name": "Founder",
+            "phone": "+77000000445",
+            "email": "tetis-founder@example.com",
+        },
+        "founder_data": "Tetis founder 100%",
+        "oked": "86210",
+        "activity_description": "Clinic created by Tetis Projects Control",
+    }
+
+    denied_response = client.post("/api/v1/integrations/tetis/clinics", json=payload)
+    assert denied_response.status_code == 403, denied_response.text
+
+    sync_response = client.post(
+        "/api/v1/integrations/tetis/clinics",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+        json=payload,
+    )
+    assert sync_response.status_code == 200, sync_response.text
+    sync_payload = sync_response.json()
+    assert sync_payload["clinic_id"] is not None
+    assert sync_payload["founder_membership_id"] is not None
+    assert sync_payload["created_clinic"] is True
+    assert sync_payload["created_founder_account"] is True
+    assert sync_payload["created_founder_membership"] is True
+
+    repeat_response = client.post(
+        "/api/v1/integrations/tetis/clinics",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+        json={**payload, "name": "Tetis Synced Clinic Updated"},
+    )
+    assert repeat_response.status_code == 200, repeat_response.text
+    repeat_payload = repeat_response.json()
+    assert repeat_payload["clinic_id"] == sync_payload["clinic_id"]
+    assert repeat_payload["application_id"] == sync_payload["application_id"]
+    assert repeat_payload["founder_membership_id"] == sync_payload["founder_membership_id"]
+    assert repeat_payload["created_clinic"] is False
+    assert repeat_payload["created_founder_account"] is False
+    assert repeat_payload["created_founder_membership"] is False
+
+    clinics_response = client.get(
+        "/api/v1/clinics",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert clinics_response.status_code == 200, clinics_response.text
+    synced_clinics = [item for item in clinics_response.json() if item["bin_iin"] == payload["bin_iin"]]
+    assert len(synced_clinics) == 1
+    assert synced_clinics[0]["name"] == "Tetis Synced Clinic Updated"
+
+    audit_response = client.get(
+        "/api/v1/admin/audit",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert audit_response.status_code == 200, audit_response.text
+    assert any(item["action"] == "tetis.clinic_sync" for item in audit_response.json())
+
+
 def test_spa_index_no_cache_headers() -> None:
     response = client.get("/")
     assert response.status_code == 200, response.text

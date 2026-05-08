@@ -130,6 +130,50 @@ class ClinicRead(BaseModel):
     status: ClinicStatus
 
 
+class TetisFounderPayload(BaseModel):
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
+
+    @field_validator("iin")
+    @classmethod
+    def validate_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
+
+
+class TetisClinicSyncRequest(BaseModel):
+    external_id: str | None = Field(default=None, max_length=120)
+    status: ClinicApplicationStatus = ClinicApplicationStatus.approved
+    name: str = Field(min_length=1, max_length=255)
+    legal_name: str = Field(min_length=1, max_length=255)
+    bin_iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
+    address: str = Field(min_length=1, max_length=255)
+    contacts: str | None = None
+    founder: TetisFounderPayload
+    founder_data: str | None = None
+    requisites: str | None = None
+    license_info: str | None = None
+    oked: str | None = Field(default=None, max_length=64)
+    activity_description: str | None = None
+    moderator_comment: str | None = None
+
+
+class TetisClinicSyncResponse(BaseModel):
+    clinic_id: int | None
+    application_id: int
+    founder_account_id: int
+    founder_membership_id: int | None
+    status: ClinicApplicationStatus
+    created_clinic: bool
+    created_founder_account: bool
+    created_founder_membership: bool
+
+
 class ClinicBranchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     address: str = Field(min_length=1, max_length=255)
