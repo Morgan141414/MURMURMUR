@@ -465,14 +465,14 @@ export default function ClinicalWorkspacePage() {
   async function handleCreateService() {
     if (!clinicId) return
     if (!serviceTitle.trim()) {
-      toast.error('??????? ???????? ??????')
+      toast.error('Укажите название услуги')
       return
     }
     const durationMinutes = Number(serviceDuration) || 30
     const normalizedCode = serviceTitle
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9?-??]+/gi, '_')
+      .replace(/[^a-z0-9а-яё]+/gi, '_')
       .replace(/^_+|_+$/g, '')
     try {
       await createClinicService(clinicId, {
@@ -482,12 +482,12 @@ export default function ClinicalWorkspacePage() {
         duration_minutes: durationMinutes,
         price: servicePrice ? Number(servicePrice) : null,
       })
-      toast.success('?????? ?????????')
+      toast.success('Услуга добавлена')
       setServiceTitle('')
       setServicePrice('')
       await refreshClinicalData()
     } catch {
-      toast.error('?? ??????? ??????? ??????')
+      toast.error('Не удалось создать услугу')
     }
   }
 
@@ -658,39 +658,49 @@ export default function ClinicalWorkspacePage() {
     .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[32px] border border-cyan-100 bg-gradient-to-br from-white via-cyan-50 to-emerald-50 p-6 shadow-xl shadow-cyan-100/60 lg:p-8">
-        <PageHeader
-          title="Клинический кабинет"
-          description="Пациенты, записи, расписание и базовая медкарта в одном медицинском рабочем месте."
-          eyebrow="Saphena M.I.S."
-          className="[&_h1]:text-slate-950 [&_p]:text-slate-600"
-        />
-        <div className="mt-6 flex flex-wrap gap-3">
+    <div className="mis-workspace clinical-workspace space-y-6">
+      <section className="mis-command-panel clinical-command-panel">
+        <div>
+          <p className="mis-kicker">Clinical Command Center</p>
+          <h1>Клинический кабинет</h1>
+          <p>Рабочая смена врача и администратора: пациенты, календарь, приёмы, кабинеты, медкарта и документы без лишнего переключения контекста.</p>
+        </div>
+        <div className="mis-command-actions">
           <Button onClick={() => void refreshClinicalData()} disabled={!clinicId || loading}>
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            {loading ? 'Загрузка...' : 'Обновить данные'}
+            {loading ? 'Загрузка...' : 'Обновить'}
           </Button>
+          <a className="mis-soft-button" href="#appointments">Приёмы</a>
+          <a className="mis-soft-button" href="#clinical-documents">Документы</a>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-cyan-100 bg-white p-5 shadow-sm">
+      <nav className="mis-clinical-rail" aria-label="Клинические разделы">
+        <a href="#calendar">Календарь</a>
+        <a href="#appointments">Приёмы</a>
+        <a href="#patients">Пациенты</a>
+        <a href="#records">Медкарта</a>
+        <a href="#rooms">Кабинеты</a>
+        <a href="#clinical-documents">Документы</a>
+      </nav>
+
+      <section className="mis-metric-grid grid gap-4 md:grid-cols-4">
+        <div className="mis-stat-card p-5">
           <UsersRound className="h-6 w-6 text-cyan-700" />
           <p className="mt-4 text-sm text-slate-500">Пациенты</p>
           <p className="text-3xl font-bold text-slate-950">{patients.length}</p>
         </div>
-        <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
+        <div className="mis-stat-card p-5">
           <CalendarCheck2 className="h-6 w-6 text-blue-700" />
           <p className="mt-4 text-sm text-slate-500">Записи сегодня</p>
           <p className="text-3xl font-bold text-slate-950">{todayAppointments}</p>
         </div>
-        <div className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm">
+        <div className="mis-stat-card p-5">
           <FileText className="h-6 w-6 text-emerald-700" />
           <p className="mt-4 text-sm text-slate-500">Записи медкарты</p>
           <p className="text-3xl font-bold text-slate-950">{medicalRecords.length}</p>
         </div>
-        <div className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm">
+        <div className="mis-stat-card p-5">
           <CalendarClock className="h-6 w-6 text-indigo-700" />
           <p className="mt-4 text-sm text-slate-500">Слоты расписания</p>
           <p className="text-3xl font-bold text-slate-950">{scheduleSlots.length}</p>
@@ -698,7 +708,7 @@ export default function ClinicalWorkspacePage() {
       </section>
 
       <section id="patients" className="scroll-mt-24 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-[28px] border border-cyan-100 bg-white p-5 shadow-sm">
+        <div className="mis-card p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-950">Реестр пациентов</h3>

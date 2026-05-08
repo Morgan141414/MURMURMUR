@@ -2378,3 +2378,172 @@
     border-radius: 20px;
   }
 }
+
+/* QorMed product redesign pass */
+.mis-workspace {
+  --mis-ink: #0c2630;
+  --mis-muted: #5f7f86;
+  --mis-line: rgba(30, 65, 75, 0.18);
+  color: var(--foreground);
+}
+
+.mis-command-panel {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  border-radius: 24px;
+  padding: clamp(1.25rem, 2vw, 2rem);
+  background:
+    linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(224, 242, 254, 0.94) 58%, rgba(255, 255, 255, 0.98)),
+    #f8fffd;
+  box-shadow: 0 20px 55px rgba(7, 26, 31, 0.14);
+  color: var(--mis-ink);
+}
+
+.mis-command-panel::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -45% auto;
+  width: 42%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.18), transparent 66%);
+  pointer-events: none;
+}
+
+.mis-command-panel h1 {
+  margin-top: .45rem;
+  max-width: 760px;
+  font-size: clamp(1.75rem, 3vw, 3.1rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.mis-command-panel p:not(.mis-kicker) {
+  margin-top: .75rem;
+  max-width: 760px;
+  color: var(--mis-muted);
+  font-size: .98rem;
+  line-height: 1.6;
+}
+
+.mis-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid rgba(20, 184, 166, 0.26);
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.1);
+  padding: .32rem .72rem;
+  color: #04786f;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.mis-command-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .65rem;
+}
+
+.mis-soft-button,
+.mis-mini-signal {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: .45rem;
+  border: 1px solid rgba(12, 38, 48, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: .58rem .82rem;
+  color: #0c4a55;
+  font-size: .82rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(7, 26, 31, .07);
+}
+
+.mis-card,
+.mis-stat-card {
+  border: 1px solid rgba(148, 211, 205, 0.22);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--card) 82%, white 18%);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
+}
+
+:root:not(.dark) .mis-card,
+:root:not(.dark) .mis-stat-card {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(12, 38, 48, 0.08);
+}
+
+.mis-stat-card {
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.mis-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(20, 184, 166, .42);
+  box-shadow: 0 20px 42px rgba(12, 38, 48, .14);
+}
+
+.mis-clinical-rail {
+  position: sticky;
+  top: calc(var(--header-height) + .75rem);
+  z-index: 20;
+  display: flex;
+  gap: .5rem;
+  overflow-x: auto;
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: 16px;
+  background: rgba(7, 26, 31, 0.78);
+  padding: .45rem;
+  backdrop-filter: blur(16px);
+}
+
+.mis-clinical-rail a {
+  flex: 0 0 auto;
+  border-radius: 12px;
+  padding: .62rem .85rem;
+  color: #a9d7d1;
+  font-size: .8rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.mis-clinical-rail a:hover,
+.mis-clinical-rail a:focus-visible {
+  background: rgba(20, 184, 166, 0.14);
+  color: #f4fffd;
+  outline: none;
+}
+
+.mis-sidebar {
+  box-shadow: 12px 0 34px rgba(0, 0, 0, .18);
+}
+
+.support-thread,
+.support-inbox {
+  min-height: 34rem;
+}
+
+@media (max-width: 900px) {
+  .mis-command-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .mis-command-actions {
+    justify-content: flex-start;
+  }
+}
+

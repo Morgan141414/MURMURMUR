@@ -185,7 +185,7 @@ function MainSidebar() {
       onMouseEnter={handleSidebarMouseEnter}
       onMouseLeave={handleSidebarMouseLeave}
       className={cn(
-        'shell-sidebar-surface group/sidebar relative flex h-screen flex-col transition-[width] duration-200 ease-in-out',
+        'shell-sidebar-surface mis-sidebar group/sidebar relative flex h-screen flex-col transition-[width] duration-200 ease-in-out',
         collapsed ? 'w-[var(--sidebar-collapsed)]' : 'w-[var(--sidebar-width)]',
       )}
     >
@@ -207,10 +207,10 @@ function MainSidebar() {
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <span className="block text-[14px] font-semibold tracking-tight text-sidebar-foreground">
-              M.I.S.
+              QorMed M.I.S.
             </span>
             <span className="text-[11px] text-sidebar-muted">
-              Medical Information System
+              Clinical Command Center
             </span>
           </div>
         )}

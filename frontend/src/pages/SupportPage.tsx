@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { LifeBuoy, Loader2, Send } from "lucide-react";
+import { Headphones, LifeBuoy, Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,15 +191,21 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={t("support.title", "Поддержка")}
-        description={t("support.startDialog", "Создавайте обращения и общайтесь с техподдержкой")}
-        eyebrow="M.I.S."
-      />
+    <div className="mis-workspace support-workspace space-y-4">
+      <section className="mis-command-panel support-command-panel">
+        <div>
+          <p className="mis-kicker">Support Desk</p>
+          <h1>{t("support.title", "Поддержка")}</h1>
+          <p>{t("support.startDialog", "Создавайте обращения и общайтесь с техподдержкой")}. Очередь, приоритеты и история диалога собраны в одном inbox.</p>
+        </div>
+        <div className="mis-command-actions">
+          <div className="mis-mini-signal"><Headphones className="h-4 w-4" /> {threads.length} обращений</div>
+          <div className="mis-mini-signal"><ShieldCheck className="h-4 w-4" /> SLA triage</div>
+        </div>
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        <section className="medical-section space-y-3 p-3">
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+        <section className="mis-card support-inbox space-y-3 p-3">
           <form onSubmit={handleCreateThread} className="space-y-2 border-b border-border pb-3">
             <Input
               value={newSubject}
@@ -306,11 +312,12 @@ export default function SupportPage() {
           </div>
         </section>
 
-        <section className="medical-section p-4">
+        <section className="mis-card support-thread p-4">
           {!selected ? (
             <div className="flex h-[60vh] flex-col items-center justify-center gap-2 text-muted-foreground">
-              <LifeBuoy className="h-6 w-6" />
+              <MessageSquareText className="h-8 w-8" />
               <p>Выберите обращение слева</p>
+              <span className="text-xs">История, статус и ответ появятся здесь.</span>
             </div>
           ) : (
             <div className="flex h-[70vh] flex-col">
@@ -394,10 +401,10 @@ export default function SupportPage() {
                   return (
                     <div
                       key={msg.id}
-                      className={`max-w-[85%] rounded-lg border p-3 ${
+                      className={`max-w-[85%] rounded-2xl border p-3 ${
                         mine
-                          ? "ml-0 border-primary/30 bg-primary/10"
-                          : "ml-auto border-border bg-muted/60"
+                          ? "ml-0 border-cyan-200 bg-cyan-50 text-slate-950"
+                          : "ml-auto border-emerald-100 bg-emerald-50 text-slate-950"
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.body}</p>

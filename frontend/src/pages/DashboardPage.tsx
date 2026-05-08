@@ -19,6 +19,9 @@ import {
   Sparkles,
   Building2,
   ChevronRight,
+  CalendarClock,
+  ClipboardPlus,
+  HeartPulse,
 } from 'lucide-react'
 import type { Task, Project } from '@/types'
 import { ROLE_DEFAULT_SHELL } from '@/types'
@@ -317,29 +320,43 @@ function OrgDashboard() {
   }
 
   const quickActions = [
-    { label: t('dashboard.viewReports'), description: 'Reports, analytics & exports', icon: FileBarChart, to: '/reports', iconClass: 'icon-blue' },
-    { label: t('dashboard.viewProfile'), description: 'Personal profile & settings', icon: User, to: '/profile', iconClass: 'icon-violet' },
+    { label: 'Клинический кабинет', description: 'Пациенты, записи, расписание и медкарты', icon: HeartPulse, to: '/company/clinical', iconClass: 'icon-green' },
+    { label: 'Календарь приёмов', description: 'Быстрый переход к расписанию на сегодня', icon: CalendarClock, to: '/company/clinical#calendar', iconClass: 'icon-blue' },
+    { label: 'Документы', description: 'Шаблоны, выпуск и история документов', icon: ClipboardPlus, to: '/company/clinical#clinical-documents', iconClass: 'icon-violet' },
+    { label: t('dashboard.viewProfile'), description: 'Профиль и настройки доступа', icon: User, to: '/profile', iconClass: 'icon-amber' },
   ]
 
   const activity = useMemo(
     () => [
-      { actor: { name: current?.orgName ?? 'Org workspace' }, action: 'compiled summary', target: `${tasks.length} tasks`, timestamp: 'Today' },
-      { actor: { name: 'Project workspace' }, action: 'updated project pool', target: `${projects.length} projects`, timestamp: 'Today' },
-      { actor: { name: 'Daily reports' }, action: 'awaiting report', target: selectedProject ? 'Project selected' : 'No project selected', timestamp: 'Now' },
+      { actor: { name: current?.orgName ?? 'Клиника' }, action: 'собрала сводку', target: `${tasks.length} задач`, timestamp: 'Сегодня' },
+      { actor: { name: 'Клинический кабинет' }, action: 'ожидает проверки', target: 'Расписание и пациенты', timestamp: 'Сейчас' },
+      { actor: { name: 'Документы' }, action: 'готовы к выпуску', target: selectedProject ? 'Контекст выбран' : 'Выберите контекст', timestamp: 'Сейчас' },
     ],
     [current?.orgName, projects.length, selectedProject, tasks.length],
   )
 
   return (
-    <div className="page-enter space-y-5">
-      <PageHeader
-        title={current?.orgName ?? t('dashboard.organization')}
-        description="Task summary, projects, and daily reporting."
-        eyebrow="Organization"
-      />
+    <div className="page-enter mis-workspace space-y-5">
+      <section className="mis-command-panel">
+        <div>
+          <p className="mis-kicker">QorMed M.I.S.</p>
+          <h1>{current?.orgName ?? t('dashboard.organization')}</h1>
+          <p>Операционный центр клиники: задачи, расписание, пациенты, документы и контроль действий в одном рабочем месте.</p>
+        </div>
+        <div className="mis-command-actions">
+          <Button onClick={() => navigate('/company/clinical#calendar')}>
+            <CalendarClock className="mr-2 h-4 w-4" />
+            Открыть календарь
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/company/clinical#patients')}>
+            <User className="mr-2 h-4 w-4" />
+            Пациенты
+          </Button>
+        </div>
+      </section>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="mis-metric-grid grid gap-3 sm:grid-cols-3">
         <StatCard icon={ListTodo} label={t('dashboard.totalTasks')} value={tasks.length} color="blue" delay={0.03} />
         <StatCard icon={CheckCircle2} label={t('dashboard.completedToday')} value={completed} color="green" delay={0.06} />
         <StatCard icon={FolderOpen} label={t('dashboard.activeProjects')} value={projects.length} color="violet" delay={0.09} />
@@ -347,14 +364,14 @@ function OrgDashboard() {
 
       {/* Tasks + Daily report */}
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <section className="enterprise-card rounded-xl p-5">
+        <section className="mis-card rounded-xl p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="icon-container icon-container-sm icon-blue rounded-md">
               <ListTodo className="h-4 w-4" />
             </div>
             <div>
               <h3 className="text-[14px] font-semibold text-foreground">{t('dashboard.todayTasks')}</h3>
-              <p className="text-[12px] text-text-tertiary">Daily operational tasks</p>
+              <p className="text-[12px] text-text-tertiary">Критичные задачи клиники на сегодня</p>
             </div>
           </div>
 
@@ -394,14 +411,14 @@ function OrgDashboard() {
           )}
         </section>
 
-        <section className="enterprise-card rounded-xl p-5">
+        <section className="mis-card rounded-xl p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="icon-container icon-container-sm icon-amber rounded-md">
               <Send className="h-4 w-4" />
             </div>
             <div>
               <h3 className="text-[14px] font-semibold text-foreground">{t('dashboard.dailyReport')}</h3>
-              <p className="text-[12px] text-text-tertiary">Submit daily project report</p>
+              <p className="text-[12px] text-text-tertiary">Короткий отчёт по смене или отделению</p>
             </div>
           </div>
 
@@ -433,14 +450,14 @@ function OrgDashboard() {
 
       {/* Quick actions + Activity */}
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <section className="enterprise-card rounded-xl p-5">
+        <section className="mis-card rounded-xl p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="icon-container icon-container-sm icon-violet rounded-md">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
               <h3 className="text-[14px] font-semibold text-foreground">{t('dashboard.quickActions')}</h3>
-              <p className="text-[12px] text-text-tertiary">Supplementary sections</p>
+              <p className="text-[12px] text-text-tertiary">Быстрые клинические маршруты</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -462,14 +479,14 @@ function OrgDashboard() {
           </div>
         </section>
 
-        <section className="enterprise-card rounded-xl p-5">
+        <section className="mis-card rounded-xl p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="icon-container icon-container-sm icon-green rounded-md">
               <FileBarChart className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-[14px] font-semibold text-foreground">Recent activity</h3>
-              <p className="text-[12px] text-text-tertiary">Latest events</p>
+              <h3 className="text-[14px] font-semibold text-foreground">Журнал смены</h3>
+              <p className="text-[12px] text-text-tertiary">Последние операционные события</p>
             </div>
           </div>
           <div className="space-y-2.5">
