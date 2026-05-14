@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from saphena.api.deps import CurrentAccount, DbSession
+from saphena.api.routers import google_calendar as _gcal  # noqa: E402
 from saphena.api.schemas import (
     AppointmentCreate,
     AppointmentRead,
@@ -807,7 +808,7 @@ def update_doctor_schedule_slot(
     response_model=AppointmentRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_appointment(
+async def create_appointment(
     clinic_id: int,
     payload: AppointmentCreate,
     db: DbSession,
@@ -906,6 +907,7 @@ def create_appointment(
     )
     db.commit()
     db.refresh(item)
+    await _gcal.auto_sync_appointment_to_google(item, db)
     return item
 
 
@@ -913,7 +915,7 @@ def create_appointment(
     "/clinics/{clinic_id}/appointments/{appointment_id}",
     response_model=AppointmentRead,
 )
-def update_appointment(
+async def update_appointment(
     clinic_id: int,
     appointment_id: int,
     payload: AppointmentUpdate,
@@ -1084,8 +1086,23 @@ def update_appointment(
         clinic_id=clinic_id,
         entity_id=item.id,
     )
+    doctor_changed = (
+        payload.doctor_membership_id is not None
+        and payload.doctor_membership_id != previous_doctor_membership_id
+    )
+    if doctor_changed and previous_doctor_membership_id and item.google_event_id:
+        # Delete from old doctor's calendar before reassigning
+        old_item_copy = type('_A', (), {
+            'id': item.id,
+            'google_event_id': item.google_event_id,
+            'doctor_membership_id': previous_doctor_membership_id,
+        })()
+        await _gcal.delete_appointment_from_google(old_item_copy, db)  # type: ignore[arg-type]
+        item.google_event_id = None
+
     db.commit()
     db.refresh(item)
+    await _gcal.auto_sync_appointment_to_google(item, db)
     return item
 
 

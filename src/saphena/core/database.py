@@ -67,6 +67,9 @@ def create_schema() -> None:
                     "qtrix_org_id": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_org_id VARCHAR(120)",
                     "qtrix_role": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_role VARCHAR(128)",
                 },
+                "appointments": {
+                    "google_event_id": "ALTER TABLE appointments ADD COLUMN google_event_id VARCHAR(256)",
+                },
             }
             for table_name, additions in schema_additions.items():
                 existing_columns = {

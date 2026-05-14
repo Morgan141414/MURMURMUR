@@ -244,6 +244,7 @@ class Appointment(Base, TimestampMixin):
         Enum(AppointmentStatus), default=AppointmentStatus.created
     )
     reason: Mapped[str | None] = mapped_column(Text, default=None)
+    google_event_id: Mapped[str | None] = mapped_column(String(256), default=None)
 
 
 class ScheduleSlot(Base, TimestampMixin):
@@ -377,6 +378,25 @@ class CrmLead(Base, TimestampMixin):
     source: Mapped[str | None] = mapped_column(String(120), default=None)
     status: Mapped[LeadStatus] = mapped_column(Enum(LeadStatus), default=LeadStatus.new)
     note: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+class GoogleCalendarToken(Base):
+    """Stores per-account Google Calendar OAuth2 tokens."""
+
+    __tablename__ = "google_calendar_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), unique=True, index=True)
+    google_email: Mapped[str | None] = mapped_column(String(255), default=None)
+    access_token: Mapped[str] = mapped_column(Text)
+    refresh_token: Mapped[str | None] = mapped_column(Text, default=None)
+    token_expiry: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    # Pending OAuth state nonce (cleared after callback)
+    oauth_state: Mapped[str | None] = mapped_column(String(128), default=None, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    account: Mapped[Account] = relationship()
 
 
 class AuditLog(Base):

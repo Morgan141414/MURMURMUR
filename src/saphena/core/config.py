@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     auth_token_mode: str = "opaque_session"
     tetis_webhook_token: str | None = None
     tetis_transition_secret: str | None = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_uri: str = "http://localhost:8000/api/v1/google-calendar/callback"
+    google_token_encryption_key: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="SAPHENA_", env_file=".env", extra="ignore")
 

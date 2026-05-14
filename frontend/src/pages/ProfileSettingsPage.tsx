@@ -5,14 +5,20 @@ import type { User } from '@/types'
 import { getMe, updateMe, uploadAvatar } from '@/api/profile'
 import { changePassword } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
   Save, Phone, Briefcase, GraduationCap, MapPin, Globe,
-  Clock, Heart, ArrowLeft, Camera, Lock,
+  Clock, Heart, ArrowLeft, Camera, Lock, CalendarDays, CheckCircle2, Loader2, Unlink,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { AvatarImage } from '@/components/shared/AvatarImage'
+import {
+  getGoogleCalendarStatus,
+  getGoogleAuthUrl,
+  disconnectGoogleCalendar,
+  type GoogleCalendarStatus,
+} from '@/api/googleCalendar'
 
 const inputClass = 'w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors'
 const labelClass = 'mb-1 block text-xs font-medium text-muted-foreground'
@@ -22,6 +28,7 @@ type SalaryCurrency = (typeof salaryCurrencies)[number]
 export default function ProfileSettingsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const setAuth = useAuthStore((s) => s.setAuth)
   const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl)
   const token = useAuthStore((s) => s.token)
@@ -63,6 +70,11 @@ export default function ProfileSettingsPage() {
   const [instagramUsername, setInstagramUsername] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Google Calendar integration state
+  const [googleCalStatus, setGoogleCalStatus] = useState<GoogleCalendarStatus | null>(null)
+  const [googleCalLoading, setGoogleCalLoading] = useState(false)
+  const [googleCalConnecting, setGoogleCalConnecting] = useState(false)
+
   useEffect(() => {
     getMe()
       .then(({ data }) => {
@@ -100,6 +112,46 @@ export default function ProfileSettingsPage() {
       .catch(() => toast.error(t('profile.loadError')))
       .finally(() => setLoading(false))
   }, [t, setAvatarUrl])
+
+  // Load Google Calendar status on mount + handle redirect-back from OAuth
+  useEffect(() => {
+    getGoogleCalendarStatus()
+      .then(({ data }) => setGoogleCalStatus(data))
+      .catch(() => {})
+
+    const gcResult = searchParams.get('google_calendar')
+    if (gcResult === 'connected') {
+      toast.success('Google Calendar подключен')
+      getGoogleCalendarStatus().then(({ data }) => setGoogleCalStatus(data)).catch(() => {})
+    } else if (gcResult === 'error') {
+      const reason = searchParams.get('reason') ?? 'unknown'
+      toast.error(`Не удалось подключить Google Calendar: ${reason}`)
+    }
+  }, [searchParams])
+
+  async function handleConnectGoogle() {
+    setGoogleCalConnecting(true)
+    try {
+      const { data } = await getGoogleAuthUrl()
+      window.location.href = data.auth_url
+    } catch {
+      toast.error('Не удалось получить URL авторизации Google')
+      setGoogleCalConnecting(false)
+    }
+  }
+
+  async function handleDisconnectGoogle() {
+    setGoogleCalLoading(true)
+    try {
+      await disconnectGoogleCalendar()
+      setGoogleCalStatus({ connected: false, google_email: null })
+      toast.success('Google Calendar отключен')
+    } catch {
+      toast.error('Не удалось отключить Google Calendar')
+    } finally {
+      setGoogleCalLoading(false)
+    }
+  }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -560,6 +612,69 @@ export default function ProfileSettingsPage() {
             <p className="mt-2 text-xs text-muted-foreground">
               {t('profile.privateProfileHint', 'Когда включено, ваш публичный профиль скрыт для других пользователей.')}
             </p>
+          </section>
+
+          {/* ── Google Calendar integration ─────────────────────── */}
+          <section className="rounded-[28px] border border-border bg-card p-5 sm:p-6">
+            <SectionHeading
+              title="Google Calendar"
+              description="Подключите Google-аккаунт врача, чтобы записи пациентов автоматически появлялись в его календаре."
+            />
+
+            {googleCalStatus?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">Подключено</p>
+                    {googleCalStatus.google_email && (
+                      <p className="text-xs text-muted-foreground truncate">{googleCalStatus.google_email}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleDisconnectGoogle()}
+                    disabled={googleCalLoading}
+                    className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10"
+                  >
+                    {googleCalLoading
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <><Unlink className="mr-1.5 h-3.5 w-3.5" />Отключить</>
+                    }
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Новые записи из расписания клиники будут синхронизированы в основной календарь Google этого аккаунта.
+                  Синхронизировать отдельную запись можно прямо из интерфейса календаря.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+                  <CalendarDays className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Google Calendar не подключен</p>
+                    <p className="text-xs text-muted-foreground">Нажмите кнопку ниже для авторизации через Google</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => void handleConnectGoogle()}
+                  disabled={googleCalConnecting}
+                  className="w-full sm:w-auto"
+                >
+                  {googleCalConnecting
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Переход к Google...</>
+                    : <><CalendarDays className="mr-2 h-4 w-4" />Подключить Google Calendar</>
+                  }
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Требуется аккаунт Google. Будет запрошен доступ только к событиям календаря.
+                </p>
+              </div>
+            )}
           </section>
 
           <div className="flex flex-wrap justify-end gap-3">
