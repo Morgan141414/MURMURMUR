@@ -22,37 +22,39 @@ export function AppShell() {
   const isMessengerRoute = location.pathname.startsWith('/messenger')
 
   return (
-    <div className="app-shell-stage relative flex h-screen overflow-hidden">
+    <div className="app-shell-stage relative flex min-h-screen overflow-hidden bg-background text-foreground">
       <CommandPalette />
 
-      {/* Accessibility: skip link */}
       <a href="#main-content" className="skip-to-content">
         {t('a11y.skipToContent', 'Skip to content')}
       </a>
 
-      {/* Desktop sidebar */}
       <div className="hidden md:flex" role="complementary" aria-label="Sidebar">
         <ShellSidebar />
       </div>
 
-      {/* Mobile drawer */}
       <MobileDrawer
         open={mobileDrawerOpen}
         onClose={() => setMobileDrawerOpen(false)}
       />
 
-      {/* Main content area */}
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <ShellHeader onMobileMenuToggle={() => setMobileDrawerOpen(true)} />
 
         <main
           id="main-content"
-          className={isMessengerRoute ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto overflow-x-hidden pb-16 md:pb-0'}
+          className={isMessengerRoute ? 'flex-1 overflow-hidden bg-background' : 'flex-1 overflow-y-auto overflow-x-hidden bg-background pb-16 md:pb-0'}
           role="main"
         >
-          <div className={isMessengerRoute ? 'flex h-full w-full flex-col' : 'mx-auto flex min-h-full w-full max-w-[var(--content-max-width)] flex-col px-4 py-5 md:px-[var(--page-gutter)] md:py-6 lg:px-8'}>
+          <div
+            className={
+              isMessengerRoute
+                ? 'flex h-full w-full flex-col'
+                : 'flex min-h-full w-full flex-col px-4 py-4 md:px-6 md:py-6'
+            }
+          >
             {isMessengerRoute ? (
-              <Suspense fallback={<div className="h-full animate-pulse rounded-xl bg-card/60" />}>
+              <Suspense fallback={<div className="h-full rounded-lg border border-border bg-card" />}>
                 <MessengerPage />
               </Suspense>
             ) : (
@@ -61,7 +63,6 @@ export function AppShell() {
           </div>
         </main>
 
-        {/* Mobile bottom navigation */}
         <MobileBottomNav />
       </div>
     </div>

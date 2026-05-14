@@ -96,7 +96,8 @@
       "tracking": "Tracking",
       "ownership": "Ownership",
       "emergency": "Emergency",
-      "clinic": "Clinic"
+      "clinic": "Clinic",
+      "patientCabinet": "Patient cabinet"
     },
     "platformOverview": "Platform Overview",
     "companies": "Companies",
@@ -179,13 +180,23 @@
     "departmentHome": "Departments",
     "platformUsers": "Users",
     "clinical": "Calendar & Appointments",
+    "clinicCommandCenter": "Clinic Center",
     "clinicWorkspace": "Clinical Workspace",
     "calendar": "Calendar",
     "appointments": "Appointments",
     "patients": "Patients",
+    "patientCard": "Patient Card",
+    "visitWorkspace": "Doctor Visit",
+    "clinicPayments": "Cash Desk",
+    "clinicAnalytics": "Clinic Analytics",
+    "clinicSettings": "Directories",
     "medicalRecords": "Medical Records",
     "roomsServices": "Rooms & Services",
-    "clinicalDocuments": "Clinical Documents"
+    "clinicalDocuments": "Documents",
+    "legacyDocuments": "Company Files",
+    "myAppointments": "My appointments",
+    "myMedicalRecord": "My medical record",
+    "myDocuments": "My documents"
   },
   "accounting": {
     "title": "Accounting",

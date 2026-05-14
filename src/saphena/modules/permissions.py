@@ -9,7 +9,13 @@ class RoleCode(StrEnum):
     clinic_ceo = "clinic_ceo"
     chief_doctor = "chief_doctor"
     doctor = "doctor"
+    doctor_assistant = "doctor_assistant"
     reception_admin = "reception_admin"
+    medical_moderator = "medical_moderator"
+    nurse = "nurse"
+    department_head = "department_head"
+    sanitary = "sanitary"
+    senior_nurse = "senior_nurse"
     call_center = "call_center"
     patient = "patient"
 
@@ -36,11 +42,17 @@ ROLE_TITLES: dict[RoleCode, str] = {
     RoleCode.support_agent: "Support Agent",
     RoleCode.clinic_founder: "Clinic Founder",
     RoleCode.clinic_ceo: "Clinic CEO",
-    RoleCode.chief_doctor: "Chief Doctor",
-    RoleCode.doctor: "Doctor",
-    RoleCode.reception_admin: "Reception Admin",
+    RoleCode.chief_doctor: "Глав. врач",
+    RoleCode.doctor: "Врачи",
+    RoleCode.doctor_assistant: "Ассистент врача",
+    RoleCode.reception_admin: "Ресепшн",
+    RoleCode.medical_moderator: "Модератор",
+    RoleCode.nurse: "Медсестра/медбрат",
+    RoleCode.department_head: "Заведующий отделением",
+    RoleCode.sanitary: "Санитарка",
+    RoleCode.senior_nurse: "Старший/ая медсестра/медбрат",
     RoleCode.call_center: "Call Center",
-    RoleCode.patient: "Patient",
+    RoleCode.patient: "Пациент",
 }
 
 
@@ -76,6 +88,18 @@ ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
     RoleCode.chief_doctor: {
         PermissionCode.clinic_read,
         PermissionCode.org_structure_manage,
+        PermissionCode.employee_manage,
+        PermissionCode.patient_manage,
+        PermissionCode.schedule_manage,
+        PermissionCode.appointment_manage,
+        PermissionCode.medical_record_read,
+        PermissionCode.document_manage,
+        PermissionCode.audit_read,
+    },
+    RoleCode.department_head: {
+        PermissionCode.clinic_read,
+        PermissionCode.org_structure_manage,
+        PermissionCode.employee_manage,
         PermissionCode.patient_manage,
         PermissionCode.schedule_manage,
         PermissionCode.appointment_manage,
@@ -88,18 +112,44 @@ ROLE_PERMISSIONS: dict[RoleCode, set[PermissionCode]] = {
         PermissionCode.medical_record_read,
         PermissionCode.document_manage,
     },
+    RoleCode.doctor_assistant: {
+        PermissionCode.clinic_read,
+        PermissionCode.appointment_manage,
+        PermissionCode.medical_record_read,
+        PermissionCode.document_manage,
+    },
+    RoleCode.nurse: {
+        PermissionCode.clinic_read,
+        PermissionCode.patient_manage,
+        PermissionCode.appointment_manage,
+        PermissionCode.medical_record_read,
+        PermissionCode.document_manage,
+    },
+    RoleCode.senior_nurse: {
+        PermissionCode.clinic_read,
+        PermissionCode.employee_manage,
+        PermissionCode.patient_manage,
+        PermissionCode.appointment_manage,
+        PermissionCode.medical_record_read,
+        PermissionCode.document_manage,
+    },
     RoleCode.reception_admin: {
         PermissionCode.clinic_read,
         PermissionCode.patient_manage,
         PermissionCode.appointment_manage,
         PermissionCode.schedule_manage,
     },
+    RoleCode.medical_moderator: {
+        PermissionCode.clinic_read,
+        PermissionCode.patient_manage,
+        PermissionCode.document_manage,
+        PermissionCode.audit_read,
+    },
+    RoleCode.sanitary: {PermissionCode.clinic_read, PermissionCode.appointment_manage},
     RoleCode.call_center: {
         PermissionCode.clinic_read,
         PermissionCode.appointment_manage,
         PermissionCode.crm_manage,
     },
-    RoleCode.patient: {
-        PermissionCode.clinic_application_create,
-    },
+    RoleCode.patient: {PermissionCode.clinic_application_create},
 }

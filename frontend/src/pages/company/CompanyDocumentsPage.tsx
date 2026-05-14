@@ -784,9 +784,11 @@ export default function CompanyDocumentsPage() {
     if (activeOrgId) {
       try {
         const response = await fetchHRDocumentContent(activeOrgId, document.id, 'download')
+        const contentTypeHeader = response.headers['content-type']
+        const contentType = typeof contentTypeHeader === 'string' ? contentTypeHeader : 'application/octet-stream'
         const blob = response.data instanceof Blob
           ? response.data
-          : new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' })
+          : new Blob([response.data], { type: contentType })
         const href = URL.createObjectURL(blob)
         const a = window.document.createElement('a')
         a.href = href

@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react'
+import { useEffect } from 'react'
 import { useLocation } from 'react-router'
 import { useContextStore } from '@/stores/contextStore'
 import { useOrgStore } from '@/stores/orgStore'
@@ -23,7 +23,7 @@ export function useShellSync() {
     const departmentMatch = path.match(/^\/department\/([0-9a-f-]{36}|[0-9a-f]{32})/)
     setActiveProject(departmentMatch?.[1] ?? null)
 
-    if (path.startsWith('/company')) {
+    if (path.startsWith('/company') || path.startsWith('/patient')) {
       targetShell = 'company'
     } else if (path.startsWith('/platform')) {
       targetShell = 'platform'

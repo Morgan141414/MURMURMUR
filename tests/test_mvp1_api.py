@@ -17,6 +17,18 @@ def setup_module() -> None:
     create_schema()
 
 
+def test_auth_health_reports_session_configuration() -> None:
+    response = client.get("/api/v1/auth/health")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["database"] == "ok"
+    assert body["checks"]["token_mode"] == "opaque_session"
+    assert body["checks"]["refresh_token_supported"] is False
+    assert body["checks"]["session_ttl_minutes"] >= 5
+
+
 def build_valid_iin(prefix11: str) -> str:
     assert len(prefix11) == 11 and prefix11.isdigit()
     digits = [int(char) for char in prefix11]
@@ -557,6 +569,26 @@ def test_support_threads_permissions_and_updates() -> None:
     )
     assert create_response.status_code == 201, create_response.text
     thread_id = create_response.json()["id"]
+    assert create_response.json()["request_meta"] is None
+
+    context_response = client.post(
+        "/api/v1/support/threads",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "subject": "Calendar issue",
+            "body": "The appointment board opened from a patient card",
+            "priority": "normal",
+            "request_type": "product_support",
+            "request_meta": {
+                "path": "/clinic/calendar",
+                "role": "reception_admin",
+                "clinic_name": "MVP Clinic",
+            },
+        },
+    )
+    assert context_response.status_code == 201, context_response.text
+    context_thread_id = context_response.json()["id"]
+    assert context_response.json()["request_meta"]["path"] == "/clinic/calendar"
 
     own_list = client.get("/api/v1/support/threads", headers={"Authorization": f"Bearer {user_token}"})
     assert own_list.status_code == 200, own_list.text
@@ -574,6 +606,13 @@ def test_support_threads_permissions_and_updates() -> None:
     )
     assert manager_detail.status_code == 200, manager_detail.text
     assert len(manager_detail.json()["messages"]) == 1
+
+    manager_context_detail = client.get(
+        f"/api/v1/support/threads/{context_thread_id}",
+        headers={"Authorization": f"Bearer {support_token}"},
+    )
+    assert manager_context_detail.status_code == 200, manager_context_detail.text
+    assert manager_context_detail.json()["request_meta"]["clinic_name"] == "MVP Clinic"
 
     reply_response = client.post(
         f"/api/v1/support/threads/{thread_id}/messages",

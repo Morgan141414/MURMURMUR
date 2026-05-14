@@ -29,6 +29,19 @@ export function login(iin: string, password: string) {
   return api.post<TokenResponse>('/auth/login', { iin, password })
 }
 
+export function getAuthHealth() {
+  return api.get<{
+    status: 'ok' | 'degraded'
+    checks: {
+      database: string
+      token_mode: string
+      session_ttl_minutes: number
+      refresh_token_supported: boolean
+    }
+    warnings: string[]
+  }>('/auth/health')
+}
+
 export function refreshToken(_refresh_token: string) {
   return Promise.reject(new Error('Refresh token is not available in the MVP1 backend yet'))
 }
@@ -59,4 +72,8 @@ export function confirmAction(password: string, action: string = 'generic', payl
 
 export function changePassword(current_password: string, new_password: string) {
   return api.post('/auth/change-password', { current_password, new_password })
+}
+
+export function exchangeQtrixTransitionToken(token: string) {
+  return api.post<TokenResponse & { account: unknown }>('/auth/transition/qtrix', { token })
 }

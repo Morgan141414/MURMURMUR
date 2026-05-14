@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import axios from 'axios'
-import { ArrowRight, CheckCircle2, Eye, EyeOff, FileText, HeartPulse, ShieldCheck, Stethoscope, UserRoundPlus } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Eye, EyeOff, FileText, HeartPulse, ShieldCheck } from 'lucide-react'
 
 import { getMe } from '@/api/profile'
 import { login, register } from '@/api/auth'
@@ -16,15 +16,15 @@ function splitName(fullName: string) {
   }
 }
 
-function SaphenaLogo() {
+function QorMedLogo() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#1687d9] text-white shadow-lg shadow-sky-200/70">
-        <Stethoscope className="h-6 w-6" />
+    <div className="qormed-auth-logo" aria-label="QorMed">
+      <div className="qormed-auth-mark" aria-hidden="true">
+        <span />
       </div>
       <div>
-        <p className="text-xl font-bold tracking-tight text-slate-900">Saphena M.I.S.</p>
-        <p className="text-xs font-medium uppercase tracking-[0.24em] text-sky-600">Medical platform</p>
+        <p>QorMed</p>
+        <small>medical information system</small>
       </div>
     </div>
   )
@@ -38,6 +38,9 @@ const STEPS = [
 
 export default function RegisterPage() {
   usePageTitle()
+  useEffect(() => {
+    document.title = 'Регистрация — QorMed M.I.S.'
+  }, [])
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
 
@@ -104,26 +107,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="tetis-auth-page">
-      <section className="tetis-auth-hero tetis-auth-hero-register">
-        <div className="tetis-auth-orb tetis-auth-orb-a" />
-        <div className="tetis-auth-orb tetis-auth-orb-b" />
+    <main className="tetis-auth-page qormed-auth-page">
+      <section className="tetis-auth-hero tetis-auth-hero-register qormed-auth-hero qormed-auth-hero-register">
+        <div className="qormed-auth-noise" />
 
-        <div className="tetis-auth-left">
-          <SaphenaLogo />
+        <div className="tetis-auth-left qormed-auth-left">
+          <QorMedLogo />
 
-          <div className="tetis-auth-copy">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
-              <UserRoundPlus className="h-4 w-4" />
-              Быстрый старт MVP1
-            </div>
+          <div className="tetis-auth-copy qormed-auth-copy">
             <h1>Регистрация для клиники и медицинской команды</h1>
             <p>
-              Создайте аккаунт, отправьте заявку на клинику и получите доступ к пациентам, расписанию, медкартам и документам.
+              Создайте аккаунт сотрудника, подайте заявку на подключение клиники и получите доступ к рабочему контуру QorMed.
             </p>
-            <div className="tetis-benefits">
+            <div className="tetis-benefits qormed-benefits">
               {STEPS.map((step, index) => (
-                <div key={step} className="tetis-benefit-row">
+                <div key={step} className="tetis-benefit-row qormed-benefit-row">
                   <span className="tetis-step-index">{index + 1}</span>
                   <span>{step}</span>
                 </div>
@@ -131,7 +129,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="tetis-auth-stats">
+          <div className="tetis-auth-stats qormed-auth-stats">
             <div>
               <strong>ИИН</strong>
               <span>единый вход</span>
@@ -147,21 +145,21 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="tetis-auth-card-wrap">
-          <form onSubmit={handleSubmit} className="tetis-auth-card tetis-register-card">
-            <div className="tetis-auth-card-head">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+        <div className="tetis-auth-card-wrap qormed-auth-card-wrap">
+          <form onSubmit={handleSubmit} className="tetis-auth-card tetis-register-card qormed-auth-card">
+            <div className="tetis-auth-card-head qormed-auth-card-head">
+              <div className="qormed-form-icon">
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div>
                 <h2>Создать аккаунт</h2>
-                <p>Заполните данные сотрудника</p>
+                <p>Данные сотрудника для входа в QorMed</p>
               </div>
             </div>
 
-            {errorMessage && <div className="tetis-auth-alert tetis-auth-alert-danger">{errorMessage}</div>}
+            {errorMessage && <div className="tetis-auth-alert tetis-auth-alert-danger qormed-auth-alert-danger">{errorMessage}</div>}
 
-            <label className="tetis-field">
+            <label className="tetis-field qormed-field">
               <span>ФИО</span>
               <input
                 type="text"
@@ -176,7 +174,7 @@ export default function RegisterPage() {
               {errors.fullName && <small>{errors.fullName}</small>}
             </label>
 
-            <label className="tetis-field">
+            <label className="tetis-field qormed-field">
               <span>ИИН</span>
               <input
                 type="text"
@@ -192,11 +190,11 @@ export default function RegisterPage() {
               {errors.iin && <small>{errors.iin}</small>}
             </label>
 
-            <label className="tetis-field">
+            <label className="tetis-field qormed-field">
               <span>Email, необязательно</span>
               <input
                 type="email"
-                placeholder="doctor@saphena.kz"
+                placeholder="doctor@clinic.kz"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value)
@@ -207,9 +205,9 @@ export default function RegisterPage() {
               {errors.email && <small>{errors.email}</small>}
             </label>
 
-            <label className="tetis-field">
+            <label className="tetis-field qormed-field">
               <span>Пароль</span>
-              <div className="tetis-password-field">
+              <div className="tetis-password-field qormed-password-field">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Минимум 8 символов"
@@ -227,31 +225,31 @@ export default function RegisterPage() {
               {errors.password ? <small>{errors.password}</small> : password && <small className="tetis-help-ok">Пароль подходит для регистрации</small>}
             </label>
 
-            <div className="tetis-auth-options">
+            <div className="tetis-auth-options qormed-auth-options">
               <label>
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 <span>Запомнить меня</span>
               </label>
             </div>
 
-            <button type="submit" disabled={loading} className="tetis-submit-btn">
-              <span>{loading ? 'Создаем...' : 'Зарегистрироваться'}</span>
+            <button type="submit" disabled={loading} className="tetis-submit-btn qormed-submit-btn">
+              <span>{loading ? 'Создаем...' : 'Создать аккаунт QorMed'}</span>
               <ArrowRight className="h-5 w-5" />
             </button>
 
-            <div className="tetis-auth-bottom">
+            <div className="tetis-auth-bottom qormed-auth-bottom">
               Уже есть аккаунт? <Link to="/login">Войти</Link>
             </div>
           </form>
 
-          <div className="tetis-floating-card tetis-floating-card-top">
+          <div className="tetis-floating-card tetis-floating-card-top qormed-floating-card">
             <FileText className="h-5 w-5 text-emerald-500" />
             <div>
               <strong>Документолог</strong>
               <span>Шаблоны и меддокументы</span>
             </div>
           </div>
-          <div className="tetis-floating-card tetis-floating-card-bottom">
+          <div className="tetis-floating-card tetis-floating-card-bottom qormed-floating-card">
             <HeartPulse className="h-5 w-5 text-sky-500" />
             <div>
               <strong>Медкарта</strong>

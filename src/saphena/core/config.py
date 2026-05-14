@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     environment: str = "local"
     database_url: str = "sqlite:///./saphena.db"
     session_ttl_minutes: int = Field(default=1440, ge=5)
+    auth_token_mode: str = "opaque_session"
     tetis_webhook_token: str | None = None
+    tetis_transition_secret: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="SAPHENA_", env_file=".env", extra="ignore")
 

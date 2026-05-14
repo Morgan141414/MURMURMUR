@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Headphones, LifeBuoy, Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useOrgStore } from "@/stores/orgStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,8 +46,12 @@ function formatDate(value?: string | null) {
 
 export default function SupportPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
   const platformRole = useAuthStore((s) => s.platformRole);
+  const userId = useAuthStore((s) => s.userId);
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const activeOrg = useOrgStore((s) => s.activeOrg());
   const canManageQueue = isSuperAdmin || platformRole === "tech_support";
 
   const [threads, setThreads] = useState<SupportThread[]>([]);
@@ -132,10 +138,24 @@ export default function SupportPage() {
     }
     setSaving(true);
     try {
+      const supportContext = {
+        url: `${window.location.origin}${location.pathname}${location.search}`,
+        path: location.pathname,
+        browser: window.navigator.userAgent,
+        user_id: userId,
+        role: activeOrg?.role ?? platformRole ?? (isSuperAdmin ? "superadmin" : "user"),
+        clinic_id: activeOrgId,
+        clinic_name: activeOrg?.orgName ?? null,
+        created_from: "support_page",
+        captured_at: new Date().toISOString(),
+      };
       const { data } = await createPersonalThread({
+        clinic_id: activeOrgId ? Number(activeOrgId) || null : null,
         subject: newSubject.trim(),
         body: newBody.trim(),
         priority: newPriority,
+        request_type: "product_support",
+        request_meta: supportContext,
       });
       setNewSubject("");
       setNewBody("");
@@ -194,13 +214,13 @@ export default function SupportPage() {
     <div className="mis-workspace support-workspace space-y-4">
       <section className="mis-command-panel support-command-panel">
         <div>
-          <p className="mis-kicker">Support Desk</p>
+          <p className="mis-kicker">Служба поддержки</p>
           <h1>{t("support.title", "Поддержка")}</h1>
-          <p>{t("support.startDialog", "Создавайте обращения и общайтесь с техподдержкой")}. Очередь, приоритеты и история диалога собраны в одном inbox.</p>
+          <p>{t("support.startDialog", "Создавайте обращения и общайтесь с техподдержкой")}. Очередь, приоритеты и история диалога собраны в одном рабочем окне.</p>
         </div>
         <div className="mis-command-actions">
           <div className="mis-mini-signal"><Headphones className="h-4 w-4" /> {threads.length} обращений</div>
-          <div className="mis-mini-signal"><ShieldCheck className="h-4 w-4" /> SLA triage</div>
+          <div className="mis-mini-signal"><ShieldCheck className="h-4 w-4" /> Приоритизация SLA</div>
         </div>
       </section>
 
@@ -332,6 +352,14 @@ export default function SupportPage() {
                 <p className="text-xs text-muted-foreground">
                   Тип: {selected.request_type} • Создано: {formatDate(selected.created_at)}
                 </p>
+                {selected.request_meta ? (
+                  <div className="grid gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground sm:grid-cols-2">
+                    <span>URL: {String(selected.request_meta.path ?? selected.request_meta.url ?? "-")}</span>
+                    <span>Роль: {String(selected.request_meta.role ?? "-")}</span>
+                    <span>Клиника: {String(selected.request_meta.clinic_name ?? selected.request_meta.clinic_id ?? "-")}</span>
+                    <span>Время: {formatDate(String(selected.request_meta.captured_at ?? selected.created_at))}</span>
+                  </div>
+                ) : null}
                 {canManageQueue && (
                   <div className="flex flex-wrap gap-2">
                     <select
@@ -403,12 +431,12 @@ export default function SupportPage() {
                       key={msg.id}
                       className={`max-w-[85%] rounded-2xl border p-3 ${
                         mine
-                          ? "ml-0 border-cyan-200 bg-cyan-50 text-slate-950"
-                          : "ml-auto border-emerald-100 bg-emerald-50 text-slate-950"
+                          ? "ml-0 border-primary/20 bg-primary/8 text-foreground"
+                          : "ml-auto border-border bg-surface-2 text-foreground"
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.body}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">{formatDate(msg.created_at)}</p>
+                      <p className="mt-1 text-[11px] text-text-tertiary">{formatDate(msg.created_at)}</p>
                     </div>
                   );
                 })}

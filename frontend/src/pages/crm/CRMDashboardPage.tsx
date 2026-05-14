@@ -1,16 +1,41 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
+import {
+  AlertCircle,
+  CalendarPlus,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  MessageSquare,
+  RefreshCw,
+  UserPlus,
+} from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { getCRMDashboard, getSalesFunnel } from '../../api/crm'
 import type { CRMDashboard, SalesFunnelData } from '../../types/crm'
 import { useOrgStore } from '@/stores/orgStore'
-import { RefreshCw, Edit, ChevronDown, TrendingUp, TrendingDown } from 'lucide-react'
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { SalesFunnelChart } from '@/components/crm/SalesFunnelChart'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const CHART_GRID = 'rgba(125, 151, 157, 0.22)'
-const CHART_LEADS = '#22A6F2'
-const CHART_DEALS = '#14B8A6'
-const CHART_WON = '#F59E0B'
+const CHART_BAR = '#14B8A6'
+
+const followUpTasks = [
+  { title: 'Повторный контакт после кардиологии', patient: 'Марат Сейдахмет', due: 'Сегодня 16:00', status: 'Просрочено' },
+  { title: 'Записать на контроль анализов', patient: 'Динара Касымова', due: 'Завтра 09:00', status: 'В работе' },
+  { title: 'Уточнить источник обращения', patient: 'Айгерим Нурланова', due: '11.05.2026', status: 'Новая' },
+]
+
+const leadSources = [
+  { name: 'WhatsApp', value: 18 },
+  { name: 'Звонки', value: 14 },
+  { name: 'Сайт', value: 9 },
+  { name: 'Повторные', value: 7 },
+]
 
 export default function CRMDashboardPage() {
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
@@ -35,248 +60,204 @@ export default function CRMDashboardPage() {
       setDashboard(dashboardResponse.data)
       setFunnelData(funnelResponse.data)
     } catch (err: any) {
-      console.error('Failed to load CRM dashboard:', err)
-      setError(err?.response?.data?.detail || 'Не удалось загрузить данные дашборда')
+      setError(err?.response?.data?.detail || 'Не удалось загрузить CRM. Проверьте подключение и попробуйте снова.')
     } finally {
       setLoading(false)
     }
   }, [activeOrgId])
 
   useEffect(() => {
-    loadDashboard()
+    void loadDashboard()
   }, [loadDashboard])
 
+  const stages = useMemo(() => funnelData?.stages ?? [], [funnelData])
+  const hasCrmData = Boolean(dashboard && (
+    dashboard.total_leads > 0 ||
+    dashboard.total_deals > 0 ||
+    dashboard.contacts_count > 0 ||
+    stages.length > 0
+  ))
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-muted-foreground">Загрузка...</div>
-      </div>
-    )
+    return <LoadingState text="Загружаем CRM: лиды, повторные контакты и задачи на сегодня." />
   }
 
   if (error) {
+    return <ErrorState title="CRM недоступна" message={error} onRetry={loadDashboard} />
+  }
+
+  if (!activeOrgId) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-destructive">{error}</div>
-      </div>
+      <EmptyState
+        title="Выберите клинику"
+        description="CRM работает в контексте активной клиники: лиды, задачи и повторные визиты привязаны к ней."
+        icon={ClipboardList}
+      />
     )
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Дашборд</h1>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent">
-                <RefreshCw className="h-4 w-4" />
-                Обновить
-              </button>
-              <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent">
-                <Edit className="h-4 w-4" />
-                Редактировать
-              </button>
+    <div className="mis-workspace space-y-5">
+      <section className="mis-command-panel">
+        <div>
+          <p className="mis-kicker">CRM клиники</p>
+          <h1>Лиды, обращения и повторные визиты</h1>
+          <p>CRM связана с пациентами, записями и follow-up задачами, чтобы клиника не теряла обращения после приема.</p>
+        </div>
+        <div className="mis-command-actions">
+          <Button variant="outline" onClick={loadDashboard}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Обновить
+          </Button>
+          <Button>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Новый лид
+          </Button>
+        </div>
+      </section>
+
+      <PageHeader
+        title="Рабочий стол CRM"
+        description="Новые обращения, задачи на сегодня, воронка и источники пациентов."
+        eyebrow="Рост клиники"
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Новые лиды" value={String(dashboard?.new_leads_count ?? 0)} tone="blue" />
+        <MetricCard title="Квалифицированы" value={String(dashboard?.qualified_leads_count ?? 0)} tone="green" />
+        <MetricCard title="Открытые сделки" value={String(dashboard?.open_deals_count ?? 0)} tone="amber" />
+        <MetricCard title="Контакты" value={String(dashboard?.contacts_count ?? 0)} tone="violet" />
+      </div>
+
+      {!hasCrmData ? (
+        <EmptyState
+          title="CRM пока пустая"
+          description="Добавьте первый лид или создайте повторный контакт из завершенного приема."
+          icon={MessageSquare}
+          action={<Link className="clinic-os-button" to="/company/crm/leads">Открыть лиды</Link>}
+        />
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="mis-card rounded-xl p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-[15px] font-semibold text-foreground">Воронка обращений</h2>
+              <p className="text-[12px] text-text-tertiary">От нового обращения до записи и повторного контакта</p>
             </div>
+            <Link className="flex items-center gap-1 text-[13px] font-medium text-primary hover:text-primary-hover" to="/company/crm/deals">
+              Сделки <ChevronRight className="h-4 w-4" />
+            </Link>
           </div>
 
-          {/* Filters */}
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent">
-              <span>Последние 30 дней</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <button className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent">
-              <span>Менеджер по продажам</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard
-              title="Всего лидов"
-              value={(dashboard?.total_leads || 0).toString()}
-            />
-            <MetricCard title="Новые лиды" value={(dashboard?.new_leads_count || 0).toString()} />
-            <MetricCard
-              title="Текущие сделки"
-              value={(dashboard?.open_deals_count || 0).toString()}
-            />
-            <MetricCard title="Всего сделок" value={(dashboard?.total_deals || 0).toString()} />
-            <MetricCard title="Квалифицированные лиды" value={(dashboard?.qualified_leads_count || 0).toString()} />
-            <MetricCard title="Контакты" value={(dashboard?.contacts_count || 0).toString()} />
-          </div>
-
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Sales Trend */}
-            <div className="rounded-lg border border-border bg-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-1">Тренд продаж</h3>
-                <p className="text-xs text-muted-foreground">Ежедневная динамика лидов, сделок и побед</p>
-              </div>
-              {dashboard?.sales_trend && dashboard.sales_trend.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={dashboard.sales_trend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Line type="monotone" dataKey="leads" stroke={CHART_LEADS} strokeWidth={2} name="Лиды" />
-                    <Line type="monotone" dataKey="deals" stroke={CHART_DEALS} strokeWidth={2} name="Сделки" />
-                    <Line type="monotone" dataKey="wonDeals" stroke={CHART_WON} strokeWidth={2} name="Выигранные" />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
-                  Нет данных для отображения
-                </div>
-              )}
-            </div>
-
-            {/* Activity by Date */}
-            <div className="rounded-lg border border-border bg-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-1">Активность по датам</h3>
-                <p className="text-xs text-muted-foreground">Количество лидов и сделок по датам</p>
-              </div>
-              {dashboard?.sales_trend && dashboard.sales_trend.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={dashboard.sales_trend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar dataKey="leads" fill={CHART_LEADS} name="Лиды" />
-                    <Bar dataKey="deals" fill={CHART_WON} name="Сделки" />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
-                  Нет данных для отображения
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Summary Stats */}
-            <div className="rounded-lg border border-border bg-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-1">Конверсия</h3>
-                <p className="text-xs text-muted-foreground">Общая статистика</p>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Всего лидов</span>
-                  <span className="text-lg font-bold">{dashboard?.total_leads || 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Всего сделок</span>
-                  <span className="text-lg font-bold">{dashboard?.total_deals || 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Конверсия лид → сделка</span>
-                  <span className="text-lg font-bold">
-                    {dashboard?.total_leads && dashboard.total_leads > 0
-                      ? `${Math.round((dashboard.total_deals / dashboard.total_leads) * 100)}%`
-                      : '0%'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Открытые сделки</span>
-                  <span className="text-lg font-bold">{dashboard?.open_deals_count || 0}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Deals by Stage */}
-            <div className="rounded-lg border border-border bg-card p-6">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-1">Сделки по этапам</h3>
-                <p className="text-xs text-muted-foreground">Распределение по воронке продаж</p>
-              </div>
-              {dashboard?.deals_by_stage && dashboard.deals_by_stage.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={dashboard.deals_by_stage}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
-                        {dashboard.deals_by_stage.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {dashboard.deals_by_stage.map((stage) => (
-                      <div key={stage.name} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: stage.color }} />
-                        <span className="text-xs text-muted-foreground">{stage.name}: {stage.value}</span>
-                      </div>
-                    ))}
+          {stages.length > 0 ? (
+            <div className="space-y-3">
+              {stages.map((stage) => (
+                <div key={stage.stage} className="rounded-lg border border-border/70 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="text-[13px] font-medium text-foreground">{stage.stage}</span>
+                    <span className="text-[12px] text-text-secondary">{stage.deal_count} обращ.</span>
                   </div>
-                </>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
-                  Нет сделок для отображения
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${Math.max(8, Math.min(100, stage.conversion_rate ?? stage.avg_probability ?? 0))}%` }}
+                    />
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
-
-          {/* Sales Funnel Section */}
-          {funnelData && (
-            <div className="mt-6">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Воронка продаж</h3>
-                <p className="text-sm text-muted-foreground">
-                  Визуализация прохождения сделок по этапам с метриками конверсии
-                </p>
-              </div>
-              <SalesFunnelChart funnelData={funnelData} />
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-[13px] text-text-tertiary">
+              Воронка появится после первых лидов и задач.
             </div>
           )}
+        </section>
+
+        <aside className="mis-card rounded-xl p-5">
+          <div className="mb-4">
+            <h2 className="text-[15px] font-semibold text-foreground">Задачи на сегодня</h2>
+            <p className="text-[12px] text-text-tertiary">Follow-up и повторные визиты</p>
+          </div>
+          <div className="space-y-2">
+            {followUpTasks.map((task) => (
+              <Link
+                key={task.title}
+                to="/company/crm/tasks"
+                className="block rounded-lg border border-border/70 p-3 transition-colors hover:bg-surface-hover"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-medium text-foreground">{task.title}</p>
+                    <p className="mt-0.5 text-[12px] text-text-tertiary">{task.patient} - {task.due}</p>
+                  </div>
+                  <StatusPill status={task.status} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </aside>
+      </div>
+
+      <section className="mis-card rounded-xl p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-[15px] font-semibold text-foreground">Источники пациентов</h2>
+            <p className="text-[12px] text-text-tertiary">Каналы обращений за последние 30 дней</p>
+          </div>
+          <Link className="flex items-center gap-1 text-[13px] font-medium text-primary hover:text-primary-hover" to="/company/crm/leads">
+            Все лиды <ChevronRight className="h-4 w-4" />
+          </Link>
         </div>
+        <div className="h-[240px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={leadSources}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="value" fill={CHART_BAR} radius={[6, 6, 0, 0]} name="Обращения" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
     </div>
   )
 }
 
-function MetricCard({
-  title,
-  value,
-  change,
-  positive,
-}: {
-  title: string
-  value: string
-  change?: number
-  positive?: boolean
-}) {
+function MetricCard({ title, value, tone }: { title: string; value: string; tone: 'blue' | 'green' | 'amber' | 'violet' }) {
+  const iconClass = {
+    blue: 'icon-blue',
+    green: 'icon-green',
+    amber: 'icon-amber',
+    violet: 'icon-violet',
+  }[tone]
+
   return (
-    <div className="bg-card border rounded-lg p-4">
-      <div className="text-xs text-muted-foreground mb-1">{title}</div>
-      <div className="flex items-baseline justify-between">
-        <div className="text-2xl font-bold">{value}</div>
-        {change !== undefined && (
-          <div className={cn('flex items-center gap-1 text-xs font-medium', positive ? 'text-green-600' : 'text-red-600')}>
-            {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            <span>{positive ? '↑' : '↓'}{change}%</span>
-          </div>
-        )}
+    <div className="mis-card rounded-xl p-4">
+      <div className="flex items-center gap-3">
+        <div className={cn('icon-container icon-container-sm rounded-md', iconClass)}>
+          {tone === 'amber' ? <AlertCircle className="h-4 w-4" /> : tone === 'green' ? <CheckCircle2 className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
+        </div>
+        <div>
+          <p className="text-[22px] font-bold leading-none text-foreground">{value}</p>
+          <p className="mt-1 text-[12px] text-text-tertiary">{title}</p>
+        </div>
       </div>
     </div>
+  )
+}
+
+function StatusPill({ status }: { status: string }) {
+  const className = status === 'Просрочено'
+    ? 'border-red-500/20 bg-red-500/10 text-red-400'
+    : status === 'В работе'
+      ? 'border-blue-500/20 bg-blue-500/10 text-blue-400'
+      : 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+
+  return (
+    <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold', className)}>
+      {status}
+    </span>
   )
 }

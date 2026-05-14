@@ -53,10 +53,20 @@ export function useMyOrgs() {
           try {
             const employees = await listClinicEmployees(clinic.id)
             const me = employees.data.find((item) => item.account_id === myAccountId)
-            if (me?.role_code === 'clinic_founder') role = 'founder'
-            else if (me?.role_code === 'clinic_ceo') role = 'ceo'
-            else if (me?.role_code === 'chief_doctor' || me?.role_code === 'doctor' || me?.role_code === 'reception_admin' || me?.role_code === 'call_center') role = 'admin'
-            else role = 'member'
+            switch (me?.role_code) {
+              case 'clinic_founder':
+              case 'clinic_ceo':
+              case 'chief_doctor':
+              case 'doctor':
+              case 'reception_admin':
+              case 'call_center':
+              case 'patient':
+              case 'support_agent':
+                role = me.role_code
+                break
+              default:
+                role = 'member'
+            }
           } catch {
             role = 'member'
           }

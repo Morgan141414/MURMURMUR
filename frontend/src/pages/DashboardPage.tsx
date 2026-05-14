@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import type { Task, Project } from '@/types'
 import { ROLE_DEFAULT_SHELL } from '@/types'
-import type { ShellType } from '@/types'
+import type { OrgRole, ShellType } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useOrgStore } from '@/stores/orgStore'
 import { useContextStore } from '@/stores/contextStore'
@@ -88,18 +88,18 @@ function PersonalDashboard() {
   }
 
   const quickLinks = [
-    { label: t('nav.profile'), description: 'Personal profile & settings', icon: User, to: '/profile', iconClass: 'icon-blue' },
-    { label: t('nav.vacancies'), description: 'Job search & career opportunities', icon: Briefcase, to: '/vacancies', iconClass: 'icon-green' },
-    { label: t('nav.messenger'), description: 'Messages, channels & discussions', icon: MessageSquare, to: '/messenger', iconClass: 'icon-violet' },
-    { label: t('nav.ratings'), description: 'Ratings & internal reputation', icon: Star, to: '/ratings', iconClass: 'icon-amber' },
+    { label: t('nav.profile'), description: 'Профиль, контакты и настройки доступа', icon: User, to: '/profile', iconClass: 'icon-blue' },
+    { label: t('nav.vacancies'), description: 'Вакансии и карьерные возможности', icon: Briefcase, to: '/vacancies', iconClass: 'icon-green' },
+    { label: t('nav.messenger'), description: 'Сообщения, каналы и обсуждения', icon: MessageSquare, to: '/messenger', iconClass: 'icon-violet' },
+    { label: t('nav.ratings'), description: 'Рейтинги и внутренняя репутация', icon: Star, to: '/ratings', iconClass: 'icon-amber' },
   ]
 
   return (
     <div className="page-enter space-y-5">
       <PageHeader
         title={t('dashboard.welcomeBack')}
-        description="Your personal entry point: companies, quick actions, and workspace navigation."
-        eyebrow="Personal workspace"
+        description="Личный вход в систему: клиники, быстрые действия и переходы в рабочие пространства."
+        eyebrow="Личное пространство"
       />
 
       {/* Welcome banner */}
@@ -112,13 +112,13 @@ function PersonalDashboard() {
               <Sparkles className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Personal mode</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Личный режим</p>
               <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{fullName ?? t('dashboard.welcome')}</h2>
-              <p className="text-[13px] text-text-secondary">Workspace before selecting a company</p>
+              <p className="text-[13px] text-text-secondary">Рабочее пространство до выбора клиники</p>
             </div>
           </div>
           <div className="rounded-lg border border-border bg-surface-0/60 px-4 py-2.5 text-[13px] backdrop-blur-sm">
-            Companies:{' '}
+            Клиники:{' '}
             <span className="font-bold text-foreground">{orgs.length}</span>
           </div>
         </div>
@@ -133,7 +133,7 @@ function PersonalDashboard() {
             </div>
             <div>
               <h3 className="text-[14px] font-semibold text-foreground">{t('dashboard.myCompanies')}</h3>
-              <p className="text-[12px] text-text-tertiary">Select a company to enter its workspace</p>
+              <p className="text-[12px] text-text-tertiary">Выберите клинику, чтобы перейти в рабочее пространство</p>
             </div>
           </div>
         </div>
@@ -168,7 +168,7 @@ function PersonalDashboard() {
 
         <div className="space-y-1.5">
           {orgs.length === 0 ? (
-            <EmptyState icon={Building2} title="No companies" description="Create or join a company to get started." />
+            <EmptyState icon={Building2} title="Клиник пока нет" description="Создайте клинику или присоединитесь к существующей, чтобы начать работу." />
           ) : (
             orgs.map((org) => (
               <button
@@ -228,7 +228,7 @@ function PersonalDashboard() {
           </div>
           <div>
             <h3 className="text-[14px] font-semibold text-foreground">{t('dashboard.quickActions')}</h3>
-            <p className="text-[12px] text-text-tertiary">Additional workspace links</p>
+            <p className="text-[12px] text-text-tertiary">Дополнительные переходы по рабочему пространству</p>
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -546,6 +546,24 @@ const SHELL_ROUTES: Record<ShellType, string> = {
   department: '/department',
 }
 
+const ROLE_HOME_ROUTES: Partial<Record<OrgRole, string>> = {
+  founder: '/clinic',
+  ceo: '/clinic',
+  admin: '/clinic',
+  clinic_founder: '/clinic',
+  clinic_ceo: '/clinic',
+  chief_doctor: '/clinic',
+  doctor: '/clinic/visits/visit-1042',
+  reception_admin: '/clinic/calendar',
+  call_center: '/clinic/calendar',
+  accountant: '/clinic/payments',
+  patient: '/patient',
+  support_agent: '/support',
+  sales_director: '/company/crm',
+  sales_manager: '/company/crm',
+  sales_support: '/company/crm',
+}
+
 function RoleRedirectDashboard() {
   const { activeOrg } = useOrgStore()
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin)
@@ -571,7 +589,7 @@ function RoleRedirectDashboard() {
 
     const targetShell = ROLE_DEFAULT_SHELL[current.role]
     setShell(targetShell)
-    navigate(SHELL_ROUTES[targetShell] || '/company', { replace: true })
+    navigate(ROLE_HOME_ROUTES[current.role] ?? SHELL_ROUTES[targetShell] ?? '/company', { replace: true })
   }, [activeOrg, isSuperAdmin, platformRole, navigate, setShell])
 
   return (

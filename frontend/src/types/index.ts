@@ -533,6 +533,14 @@ export type OrgRole =
   | 'accountant'
   | 'sysadmin'
   | 'admin'
+  | 'clinic_founder'
+  | 'clinic_ceo'
+  | 'chief_doctor'
+  | 'doctor'
+  | 'reception_admin'
+  | 'call_center'
+  | 'patient'
+  | 'support_agent'
   | 'team_lead'
   | 'project_manager'
   | 'developer'
@@ -569,6 +577,14 @@ export const ROLE_DEFAULT_SHELL: Record<OrgRole, ShellType> = {
   hiring_manager: 'company',
   accountant: 'company',
   admin: 'company',
+  clinic_founder: 'company',
+  clinic_ceo: 'company',
+  chief_doctor: 'company',
+  doctor: 'company',
+  reception_admin: 'company',
+  call_center: 'company',
+  patient: 'company',
+  support_agent: 'company',
   team_lead: 'company',
   project_manager: 'company',
   developer: 'company',
@@ -590,6 +606,14 @@ export const ROLE_ALLOWED_SHELLS: Record<OrgRole, ShellType[]> = {
   hiring_manager: ['company', 'department'],
   accountant: ['company'],
   admin: ['company', 'department'],
+  clinic_founder: ['company'],
+  clinic_ceo: ['company'],
+  chief_doctor: ['company'],
+  doctor: ['company'],
+  reception_admin: ['company'],
+  call_center: ['company'],
+  patient: ['company'],
+  support_agent: ['company'],
   team_lead: ['company', 'department'],
   project_manager: ['company', 'department'],
   developer: ['company', 'department'],
@@ -611,6 +635,14 @@ export const ROLE_LABELS: Record<OrgRole, string> = {
   accountant: 'Accountant',
   sysadmin: 'System Admin',
   admin: 'Admin',
+  clinic_founder: 'Владелец клиники',
+  clinic_ceo: 'Руководитель клиники',
+  chief_doctor: 'Главный врач',
+  doctor: 'Врач',
+  reception_admin: 'Ресепшн',
+  call_center: 'Оператор',
+  patient: 'Пациент',
+  support_agent: 'Техподдержка',
   team_lead: 'Team Lead',
   project_manager: 'Projects Manager',
   developer: 'Developer',
@@ -632,6 +664,14 @@ export const ROLE_COLORS: Partial<Record<OrgRole, string>> = {
   accountant: 'bg-sky-500/10 text-sky-600',
   sysadmin: 'bg-blue-500/10 text-blue-600',
   admin: 'bg-blue-500/10 text-blue-600',
+  clinic_founder: 'bg-emerald-500/10 text-emerald-600',
+  clinic_ceo: 'bg-emerald-500/10 text-emerald-600',
+  chief_doctor: 'bg-cyan-500/10 text-cyan-600',
+  doctor: 'bg-cyan-500/10 text-cyan-600',
+  reception_admin: 'bg-sky-500/10 text-sky-600',
+  call_center: 'bg-sky-500/10 text-sky-600',
+  patient: 'bg-violet-500/10 text-violet-600',
+  support_agent: 'bg-orange-500/10 text-orange-600',
   team_lead: 'bg-amber-500/10 text-amber-600',
   project_manager: 'bg-amber-500/10 text-amber-600',
   developer: 'bg-violet-500/10 text-violet-600',

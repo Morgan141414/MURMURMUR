@@ -7,6 +7,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -49,6 +50,7 @@ class Person(Base, TimestampMixin):
     __tablename__ = "persons"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    qtrix_user_id: Mapped[str | None] = mapped_column(String(120), unique=True, index=True, default=None)
     iin: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
@@ -94,6 +96,9 @@ class Clinic(Base, TimestampMixin):
     __tablename__ = "clinics"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    qtrix_org_id: Mapped[str | None] = mapped_column(String(120), unique=True, index=True, default=None)
+    qtrix_sync_status: Mapped[str | None] = mapped_column(String(64), default=None)
+    qtrix_last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     name: Mapped[str] = mapped_column(String(255), index=True)
     legal_name: Mapped[str] = mapped_column(String(255))
     bin_iin: Mapped[str] = mapped_column(String(32), unique=True, index=True)
@@ -187,6 +192,10 @@ class ClinicMembership(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("account_id", "clinic_id", "role_code"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    qtrix_membership_id: Mapped[str | None] = mapped_column(String(160), unique=True, index=True, default=None)
+    qtrix_user_id: Mapped[str | None] = mapped_column(String(120), index=True, default=None)
+    qtrix_org_id: Mapped[str | None] = mapped_column(String(120), index=True, default=None)
+    qtrix_role: Mapped[str | None] = mapped_column(String(128), default=None)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
     role_code: Mapped[RoleCode] = mapped_column(Enum(RoleCode))
@@ -330,6 +339,7 @@ class SupportThread(Base, TimestampMixin):
         ForeignKey("accounts.id"), default=None, index=True
     )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
+    request_meta: Mapped[dict[str, object] | None] = mapped_column(JSON, default=None)
 
 
 class SupportMessage(Base, TimestampMixin):

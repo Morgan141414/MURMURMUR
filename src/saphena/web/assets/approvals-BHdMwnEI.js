@@ -1,1 +1,0 @@
-import{Y as o}from"./index-CbN1LJMC.js";function t(r){return o.get(`/orgs/${r}/approvals`)}function e(r,p){return o.post(`/orgs/${r}/approvals`,p)}function n(r,p,a){return o.post(`/orgs/${r}/approvals/${p}/approve`,{comment:a})}function l(r,p,a){return o.post(`/orgs/${r}/approvals/${p}/reject`,{comment:a})}export{n as a,e as c,t as l,l as r};

@@ -108,7 +108,7 @@ export default function ProfilePage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{fullName}</h1>
               {(profile.position || profile.specialty) && (
-                <p className="mt-0.5 text-base text-muted-foreground">
+                <p className="mt-0.5 text-base text-text-secondary">
                   {[profile.position, profile.specialty].filter(Boolean).join(' · ')}
                 </p>
               )}
@@ -121,7 +121,7 @@ export default function ProfilePage() {
             </div>
             <button
               onClick={() => navigate('/profile/settings')}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent transition-colors shrink-0"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover transition-colors shrink-0"
             >
               <Pencil className="h-3.5 w-3.5" />
               Редактировать профиль
@@ -136,7 +136,7 @@ export default function ProfilePage() {
           )}
 
           {/* Meta info row */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
             {profile.city && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5" />{profile.city}
@@ -167,7 +167,7 @@ export default function ProfilePage() {
             {stats.map((s) => (
               <div key={s.label}>
                 <span className="text-lg font-bold text-foreground">{s.value}</span>
-                <span className="ml-1.5 text-sm text-muted-foreground">{s.label}</span>
+                <span className="ml-1.5 text-sm text-text-secondary">{s.label}</span>
               </div>
             ))}
           </div>
@@ -191,14 +191,16 @@ export default function ProfilePage() {
       <RoleDashboard role={currentRole} profile={profile} />
 
       {/* Content grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Left column — sidebar info */}
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Skills */}
           {profile.skills && profile.skills.length > 0 && (
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2.5">
-                <Award className="h-4 w-4 text-muted-foreground" />
+            <section className="enterprise-card rounded-xl p-5">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-foreground mb-3">
+                <div className="icon-container icon-container-sm icon-blue rounded-md">
+                  <Award className="h-4 w-4" />
+                </div>
                 {t('profile.skills')}
               </h3>
               <div className="flex flex-wrap gap-1.5">
@@ -208,104 +210,99 @@ export default function ProfilePage() {
                   </span>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {/* Education */}
           {profile.education && (
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
-                <GraduationCap className="h-4 w-4 text-muted-foreground" />
+            <section className="enterprise-card rounded-xl p-5">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-foreground mb-2">
+                <div className="icon-container icon-container-sm icon-violet rounded-md">
+                  <GraduationCap className="h-4 w-4" />
+                </div>
                 {t('profile.education')}
               </h3>
-              <p className="text-sm text-muted-foreground">{profile.education}</p>
-            </div>
+              <p className="text-[13px] text-text-secondary">{profile.education}</p>
+            </section>
           )}
 
           {/* Experience */}
           {profile.experience_years != null && profile.experience_years > 0 && (
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
+            <section className="enterprise-card rounded-xl p-5">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-foreground mb-2">
+                <div className="icon-container icon-container-sm icon-amber rounded-md">
+                  <Clock className="h-4 w-4" />
+                </div>
                 {t('profile.experience')}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] text-text-secondary">
                 {profile.experience_years} {t('profile.years')}
               </p>
-            </div>
+            </section>
           )}
 
           {/* Organizations */}
           {orgs.length > 0 && (
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2.5">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <section className="enterprise-card rounded-xl p-5">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-foreground mb-3">
+                <div className="icon-container icon-container-sm icon-green rounded-md">
+                  <Briefcase className="h-4 w-4" />
+                </div>
                 {t('dashboard.myCompanies')}
               </h3>
               <div className="space-y-2">
                 {orgs.map((org) => (
-                  <div key={org.orgId} className="flex items-center gap-2.5">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-xs font-semibold text-foreground">
+                  <div key={org.orgId} className="flex items-center gap-2.5 rounded-lg border border-border/60 px-3 py-2.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
                       {org.orgName.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{org.orgName}</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] text-muted-foreground">{ROLE_LABELS[org.role]}</span>
-                        <span className="text-[11px] text-muted-foreground">·</span>
-                        <div className="flex items-center gap-px">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`h-3 w-3 ${star <= 4 ? 'fill-amber-400 text-amber-400' : 'text-border'}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                      <p className="text-[13px] font-medium text-foreground truncate">{org.orgName}</p>
+                      <span className="text-[11px] text-text-tertiary">{ROLE_LABELS[org.role]}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
         </div>
 
         {/* Right column */}
         <div className="lg:col-span-2 space-y-4">
           {/* Projects placeholder */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">
+          <section className="enterprise-card rounded-xl p-5">
+            <h3 className="text-[13px] font-semibold text-foreground mb-3">
               {t('profile.projects')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center min-h-[120px]">
-                <FolderOpen className="h-8 w-8 text-muted-foreground/20 mb-2" />
-                <p className="text-sm text-muted-foreground">{t('dashboard.noProjects')}</p>
+              <div className="rounded-lg border border-dashed border-border p-5 flex flex-col items-center justify-center text-center min-h-[100px]">
+                <FolderOpen className="h-6 w-6 text-text-tertiary/30 mb-2" />
+                <p className="text-[13px] text-text-tertiary">{t('dashboard.noProjects')}</p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Teams */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">
+          <section className="enterprise-card rounded-xl p-5">
+            <h3 className="text-[13px] font-semibold text-foreground mb-3">
               {t('profile.teams')}
             </h3>
-            <div className="rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center min-h-[120px]">
-              <Users className="h-8 w-8 text-muted-foreground/20 mb-2" />
-              <p className="text-sm text-muted-foreground">{t('profile.noTeams')}</p>
+            <div className="rounded-lg border border-dashed border-border p-5 flex flex-col items-center justify-center text-center min-h-[100px]">
+              <Users className="h-6 w-6 text-text-tertiary/30 mb-2" />
+              <p className="text-[13px] text-text-tertiary">{t('profile.noTeams')}</p>
             </div>
-          </div>
+          </section>
 
           {/* Achievements */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">
+          <section className="enterprise-card rounded-xl p-5">
+            <h3 className="text-[13px] font-semibold text-foreground mb-3">
               {t('profile.achievements')}
             </h3>
-            <div className="rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center min-h-[120px]">
-              <Award className="h-8 w-8 text-muted-foreground/20 mb-2" />
-              <p className="text-sm text-muted-foreground">{t('profile.noAchievements')}</p>
+            <div className="rounded-lg border border-dashed border-border p-5 flex flex-col items-center justify-center text-center min-h-[100px]">
+              <Award className="h-6 w-6 text-text-tertiary/30 mb-2" />
+              <p className="text-[13px] text-text-tertiary">{t('profile.noAchievements')}</p>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
@@ -409,29 +406,31 @@ function RoleDashboard({ role, profile }: { role: OrgRole | null; profile: Profi
   if (!config) return null
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <section className="enterprise-card rounded-xl p-5">
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-          <Shield className="h-5 w-5 text-primary" />
+        <div className="icon-container icon-container-sm icon-blue rounded-md">
+          <Shield className="h-4 w-4" />
         </div>
         <div>
-          <h2 className="text-base font-semibold text-foreground">{config.title}</h2>
-          <p className="text-xs text-muted-foreground">{config.description}</p>
+          <h2 className="text-[14px] font-semibold text-foreground">{config.title}</h2>
+          <p className="text-[12px] text-text-tertiary">{config.description}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {config.actions.map((action) => (
           <button
             key={action.to}
             onClick={() => navigate(action.to)}
-            className="flex flex-col items-center gap-2 rounded-xl border border-border bg-background p-4 text-sm font-medium text-foreground transition-all hover:bg-accent hover:border-primary/20 hover:shadow-sm"
+            className="enterprise-card-interactive flex flex-col items-center gap-2 rounded-lg p-4"
           >
-            <action.icon className="h-5 w-5 text-primary" />
-            <span className="text-xs text-center">{action.label}</span>
+            <div className="icon-container icon-container-sm icon-blue rounded-md">
+              <action.icon className="h-4 w-4" />
+            </div>
+            <span className="text-[12px] font-medium text-foreground text-center">{action.label}</span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   )
 }

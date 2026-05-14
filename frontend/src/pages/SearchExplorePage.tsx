@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { Search, Users, Building2, MapPin, Briefcase, Star, ArrowRight, Globe, Loader2, Send } from 'lucide-react'
+import { Search, Users, Building2, MapPin, Briefcase, Star, ArrowRight, Globe, Loader2, Send, CalendarDays, FileText, HeartPulse } from 'lucide-react'
 import { exploreOrgs, exploreUsers, exploreVacancies } from '@/api/explore'
 import { joinOrg } from '@/api/orgs'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -10,7 +10,65 @@ import { Button } from '@/components/ui/button'
 import { AvatarImage } from '@/components/shared/AvatarImage'
 import type { ExploreOrg, User, Vacancy } from '@/types'
 
-type TabFilter = 'all' | 'users' | 'companies' | 'vacancies'
+type TabFilter = 'all' | 'patients' | 'appointments' | 'documents' | 'users' | 'companies' | 'vacancies'
+
+const clinicalSearchSeed = {
+  patients: [
+    {
+      id: 'p-1042',
+      name: 'Айгерим Нурланова',
+      meta: 'ИИН 890512450012 · +7 701 245 18 90 · терапевт · сегодня 10:30',
+      alert: 'Анализы готовы, давление под контролем',
+      to: '/clinic/patients/p-1042',
+    },
+    {
+      id: 'p-1188',
+      name: 'Марат Сейдахмет',
+      meta: 'ИИН 760301300442 · +7 775 010 44 20 · кардиология',
+      alert: 'Аллергия на лидокаин, долг 18 000 ₸',
+      to: '/clinic/patients/p-1188',
+    },
+    {
+      id: 'p-1220',
+      name: 'Динара Касымова',
+      meta: 'ИИН 920812600333 · +7 700 888 55 11 · новый пациент',
+      alert: 'Нужна первичная карта и пакет документов',
+      to: '/clinic/patients/p-1220',
+    },
+  ],
+  appointments: [
+    {
+      id: 'apt-1030',
+      title: '10:30 · Повторный прием',
+      meta: 'Айгерим Нурланова · терапевт · кабинет 201',
+      status: 'На приеме',
+      to: '/clinic/calendar',
+    },
+    {
+      id: 'apt-1100',
+      title: '11:00 · Кардиология',
+      meta: 'Марат Сейдахмет · кабинет 304 · требуется подтверждение',
+      status: 'Запланирована',
+      to: '/clinic/appointments',
+    },
+  ],
+  documents: [
+    {
+      id: 'doc-template-therapy',
+      title: 'Первичный прием терапевта',
+      meta: 'Шаблон · 12 переменных · пациент/врач/прием',
+      status: 'Готов к выпуску',
+      to: '/clinic/documents',
+    },
+    {
+      id: 'doc-result-ekg',
+      title: 'ЭКГ и результаты анализов',
+      meta: 'Айгерим Нурланова · прикреплено к карте пациента',
+      status: 'Сформирован',
+      to: '/clinic/patients/p-1042',
+    },
+  ],
+}
 
 function normalizeSkills(skills: User['skills']) {
   if (!skills) return []
@@ -105,12 +163,42 @@ export default function SearchExplorePage() {
     )
   }, [vacancies, query])
 
+  const filteredPatients = useMemo(() => {
+    if (!query.trim()) return clinicalSearchSeed.patients
+    const q = query.toLowerCase()
+    return clinicalSearchSeed.patients.filter((patient) =>
+      `${patient.name} ${patient.meta} ${patient.alert}`.toLowerCase().includes(q),
+    )
+  }, [query])
+
+  const filteredAppointments = useMemo(() => {
+    if (!query.trim()) return clinicalSearchSeed.appointments
+    const q = query.toLowerCase()
+    return clinicalSearchSeed.appointments.filter((appointment) =>
+      `${appointment.title} ${appointment.meta} ${appointment.status}`.toLowerCase().includes(q),
+    )
+  }, [query])
+
+  const filteredDocuments = useMemo(() => {
+    if (!query.trim()) return clinicalSearchSeed.documents
+    const q = query.toLowerCase()
+    return clinicalSearchSeed.documents.filter((document) =>
+      `${document.title} ${document.meta} ${document.status}`.toLowerCase().includes(q),
+    )
+  }, [query])
+
   const showUsers = activeTab === 'all' || activeTab === 'users'
   const showCompanies = activeTab === 'all' || activeTab === 'companies'
   const showVacancies = activeTab === 'all' || activeTab === 'vacancies'
+  const showPatients = activeTab === 'all' || activeTab === 'patients'
+  const showAppointments = activeTab === 'all' || activeTab === 'appointments'
+  const showDocuments = activeTab === 'all' || activeTab === 'documents'
 
   const tabs: { key: TabFilter; label: string; icon: typeof Search }[] = [
     { key: 'all', label: t('search.tabAll', 'Все'), icon: Search },
+    { key: 'patients', label: 'Пациенты', icon: HeartPulse },
+    { key: 'appointments', label: 'Записи', icon: CalendarDays },
+    { key: 'documents', label: 'Документы', icon: FileText },
     { key: 'users', label: t('search.tabUsers', 'Пользователи'), icon: Users },
     { key: 'companies', label: t('search.tabCompanies', 'Компании'), icon: Building2 },
     { key: 'vacancies', label: t('search.tabVacancies', 'Вакансии'), icon: Briefcase },
@@ -140,6 +228,9 @@ export default function SearchExplorePage() {
   }
 
   const hasResults =
+    (showPatients && filteredPatients.length > 0) ||
+    (showAppointments && filteredAppointments.length > 0) ||
+    (showDocuments && filteredDocuments.length > 0) ||
     (showUsers && filteredUsers.length > 0) ||
     (showCompanies && filteredCompanies.length > 0) ||
     (showVacancies && filteredVacancies.length > 0)
@@ -150,7 +241,7 @@ export default function SearchExplorePage() {
         title={t('search.title', 'Поиск')}
         description={t(
           'search.description',
-          'Находите пользователей и компании на платформе',
+          'Находите пациентов по ФИО, ИИН и телефону, открывайте записи, документы, сотрудников и компании',
         )}
         eyebrow={t('search.eyebrow', 'Explore')}
       />
@@ -162,7 +253,7 @@ export default function SearchExplorePage() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('search.placeholder', 'Поиск пользователей и компаний...')}
+          placeholder={t('search.placeholder', 'Пациент, ИИН, телефон, запись, документ, сотрудник...')}
           className="h-14 w-full rounded-2xl border border-border bg-card pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground shadow-sm transition-colors focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
         />
       </div>
@@ -194,7 +285,7 @@ export default function SearchExplorePage() {
         </h2>
         {query.trim() && (
           <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-            {filteredUsers.length + filteredCompanies.length + filteredVacancies.length}
+            {filteredPatients.length + filteredAppointments.length + filteredDocuments.length + filteredUsers.length + filteredCompanies.length + filteredVacancies.length}
           </span>
         )}
       </div>
@@ -217,6 +308,96 @@ export default function SearchExplorePage() {
             {t('search.tryDifferent', 'Попробуйте изменить запрос или фильтры')}
           </p>
         </div>
+      )}
+
+      {!loading && showPatients && filteredPatients.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <HeartPulse className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Пациенты</h3>
+            <span className="text-xs text-muted-foreground">({filteredPatients.length})</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredPatients.map((patient) => (
+              <button
+                key={patient.id}
+                type="button"
+                onClick={() => navigate(patient.to)}
+                className="group rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 hover:bg-surface-hover"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                    {patient.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-foreground">{patient.name}</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">{patient.meta}</span>
+                    <span className="mt-2 inline-flex rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500">
+                      {patient.alert}
+                    </span>
+                  </span>
+                  <ArrowRight className="mt-1 h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && showAppointments && filteredAppointments.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Записи</h3>
+            <span className="text-xs text-muted-foreground">({filteredAppointments.length})</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredAppointments.map((appointment) => (
+              <button
+                key={appointment.id}
+                type="button"
+                onClick={() => navigate(appointment.to)}
+                className="group rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 hover:bg-surface-hover"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">{appointment.title}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{appointment.meta}</span>
+                  </span>
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">{appointment.status}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && showDocuments && filteredDocuments.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Документы</h3>
+            <span className="text-xs text-muted-foreground">({filteredDocuments.length})</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredDocuments.map((document) => (
+              <button
+                key={document.id}
+                type="button"
+                onClick={() => navigate(document.to)}
+                className="group rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 hover:bg-surface-hover"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">{document.title}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{document.meta}</span>
+                  </span>
+                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-500">{document.status}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Users section */}

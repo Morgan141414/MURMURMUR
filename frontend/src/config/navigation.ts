@@ -9,8 +9,8 @@ import {
   Shield, ClipboardCheck,
   Megaphone, HeadphonesIcon, Scale, DollarSign,
   ContactRound,
-  CalendarDays, CalendarCheck2, DoorOpen, Stethoscope,
-  Calculator,
+  CalendarDays, Stethoscope,
+  Calculator, HeartPulse, ReceiptText, ChartNoAxesCombined, Settings2, Bell,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -30,25 +30,47 @@ export interface NavSection {
   items: NavItem[]
 }
 
+
+const clinicLeadershipRoles: OrgRole[] = ['founder', 'ceo', 'admin', 'superadmin', 'clinic_founder', 'clinic_ceo', 'chief_doctor']
+const clinicCareRoles: OrgRole[] = [...clinicLeadershipRoles, 'doctor', 'reception_admin', 'call_center']
+const clinicDocumentRoles: OrgRole[] = [...clinicLeadershipRoles, 'doctor', 'reception_admin', 'call_center']
+const clinicFinanceRoles: OrgRole[] = [...clinicLeadershipRoles, 'accountant']
+const clinicAnalyticsRoles: OrgRole[] = [...clinicLeadershipRoles, 'accountant']
+const patientRoles: OrgRole[] = ['patient']
+
 export const companyNav: NavSection[] = [
   {
-    labelKey: 'nav.sections.overview',
+    labelKey: 'nav.sections.patientCabinet',
     items: [
-      { to: '/company/people', labelKey: 'nav.companyPeople', icon: Users },
-      { to: '/company/crm', labelKey: 'nav.crm', icon: ContactRound, roles: ['founder', 'ceo', 'admin', 'sales_director', 'sales_manager', 'sales_support'] },
-      { to: '/company/projects', labelKey: 'nav.departments', icon: FolderKanban, roles: ['founder', 'ceo', 'hr', 'lawyer'] },
-      { to: '/company/documents', labelKey: 'nav.documents', icon: Files },
+      { to: '/patient', labelKey: 'nav.myAppointments', icon: CalendarDays, roles: patientRoles },
+      { to: '/patient/records', labelKey: 'nav.myMedicalRecord', icon: HeartPulse, roles: patientRoles },
+      { to: '/patient/documents', labelKey: 'nav.myDocuments', icon: Files, roles: patientRoles },
+      { to: '/patient/support', labelKey: 'nav.notifications', icon: Bell, roles: patientRoles },
     ],
   },
   {
     labelKey: 'nav.sections.clinic',
     items: [
-      { to: '/company/clinical#calendar', labelKey: 'nav.calendar', icon: CalendarDays },
-      { to: '/company/clinical#appointments', labelKey: 'nav.appointments', icon: CalendarCheck2 },
-      { to: '/company/clinical#patients', labelKey: 'nav.patients', icon: UsersRound },
-      { to: '/company/clinical#records', labelKey: 'nav.medicalRecords', icon: Stethoscope },
-      { to: '/company/clinical#rooms', labelKey: 'nav.roomsServices', icon: DoorOpen },
-      { to: '/company/clinical#clinical-documents', labelKey: 'nav.clinicalDocuments', icon: Files },
+      { to: '/clinic', labelKey: 'nav.clinicCommandCenter', icon: HeartPulse, roles: clinicCareRoles },
+      { to: '/clinic/calendar', labelKey: 'nav.calendar', icon: CalendarDays, roles: clinicCareRoles },
+      { to: '/clinic/appointments', labelKey: 'nav.appointments', icon: ClipboardCheck, roles: clinicCareRoles },
+      { to: '/clinic/patients', labelKey: 'nav.patients', icon: UsersRound, roles: clinicCareRoles },
+      { to: '/clinic/medical-records', labelKey: 'nav.medicalRecords', icon: HeartPulse, roles: [...clinicLeadershipRoles, 'doctor'] },
+      { to: '/clinic/visits/visit-1042', labelKey: 'nav.visitWorkspace', icon: Stethoscope, roles: [...clinicLeadershipRoles, 'doctor'] },
+      { to: '/clinic/payments', labelKey: 'nav.clinicPayments', icon: ReceiptText, roles: clinicFinanceRoles },
+      { to: '/clinic/documents', labelKey: 'nav.clinicalDocuments', icon: Files, roles: clinicDocumentRoles },
+      { to: '/clinic/analytics', labelKey: 'nav.clinicAnalytics', icon: ChartNoAxesCombined, roles: clinicAnalyticsRoles },
+      { to: '/clinic/kpi', labelKey: 'nav.myKpi', icon: ChartNoAxesCombined, roles: ['doctor'], strictRoles: true },
+      { to: '/company/notifications', labelKey: 'nav.notifications', icon: Bell, roles: ['reception_admin', 'call_center', ...clinicLeadershipRoles] },
+      { to: '/clinic/settings', labelKey: 'nav.clinicSettings', icon: Settings2, roles: clinicLeadershipRoles },
+    ],
+  },
+  {
+    labelKey: 'nav.sections.overview',
+    items: [
+      { to: '/company/people', labelKey: 'nav.companyPeople', icon: Users, roles: clinicLeadershipRoles },
+      { to: '/company/crm', labelKey: 'nav.crm', icon: ContactRound, roles: ['founder', 'ceo', 'admin', 'clinic_founder', 'clinic_ceo', 'reception_admin', 'call_center', 'sales_director', 'sales_manager', 'sales_support'] },
+      { to: '/company/projects', labelKey: 'nav.departments', icon: FolderKanban, roles: ['founder', 'ceo', 'hr', 'lawyer'] },
     ],
   },
   {
@@ -60,8 +82,10 @@ export const companyNav: NavSection[] = [
     ],
   },
   {
-    labelKey: 'nav.sections.finance',
+    labelKey: 'nav.sections.settings',
     items: [
+      { to: '/company/documents', labelKey: 'nav.legacyDocuments', icon: Files, roles: clinicDocumentRoles },
+      { to: '/company/roles', labelKey: 'nav.roleManagement', icon: Shield, roles: ['founder', 'ceo', 'admin'] },
       { to: '/company/accounting', labelKey: 'nav.accounting', icon: Calculator, requiresSuperAdmin: true },
     ],
   },

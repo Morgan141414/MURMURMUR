@@ -36,13 +36,44 @@ def create_schema() -> None:
     Base.metadata.create_all(bind=engine)
     if settings.database_url.startswith("sqlite"):
         with engine.begin() as conn:
-            columns = {
+            support_ticket_columns = {
                 row[1]
                 for row in conn.exec_driver_sql("PRAGMA table_info(support_tickets)").fetchall()
             }
-            if "support_thread_id" not in columns:
+            if "support_thread_id" not in support_ticket_columns:
                 conn.exec_driver_sql(
                     "ALTER TABLE support_tickets ADD COLUMN support_thread_id INTEGER"
                 )
+
+            support_thread_columns = {
+                row[1]
+                for row in conn.exec_driver_sql("PRAGMA table_info(support_threads)").fetchall()
+            }
+            if "request_meta" not in support_thread_columns:
+                conn.exec_driver_sql(
+                    "ALTER TABLE support_threads ADD COLUMN request_meta JSON"
+                )
+
+            schema_additions = {
+                "persons": {"qtrix_user_id": "ALTER TABLE persons ADD COLUMN qtrix_user_id VARCHAR(120)"},
+                "clinics": {
+                    "qtrix_org_id": "ALTER TABLE clinics ADD COLUMN qtrix_org_id VARCHAR(120)",
+                    "qtrix_sync_status": "ALTER TABLE clinics ADD COLUMN qtrix_sync_status VARCHAR(64)",
+                    "qtrix_last_synced_at": "ALTER TABLE clinics ADD COLUMN qtrix_last_synced_at DATETIME",
+                },
+                "clinic_memberships": {
+                    "qtrix_membership_id": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_membership_id VARCHAR(160)",
+                    "qtrix_user_id": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_user_id VARCHAR(120)",
+                    "qtrix_org_id": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_org_id VARCHAR(120)",
+                    "qtrix_role": "ALTER TABLE clinic_memberships ADD COLUMN qtrix_role VARCHAR(128)",
+                },
+            }
+            for table_name, additions in schema_additions.items():
+                existing_columns = {
+                    row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table_name})").fetchall()
+                }
+                for column_name, ddl in additions.items():
+                    if column_name not in existing_columns:
+                        conn.exec_driver_sql(ddl)
     with SessionLocal() as db:
         ensure_role_definitions(db)

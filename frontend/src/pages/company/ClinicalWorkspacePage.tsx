@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
 import { toast } from 'sonner'
-import { BriefcaseMedical, CalendarClock, CalendarCheck2, ClipboardPlus, DoorOpen, FileText, HeartPulse, Loader2, RefreshCw, Stethoscope, UserRoundPlus, UsersRound } from 'lucide-react'
+import { Activity, BadgeCheck, BriefcaseMedical, CalendarClock, CalendarCheck2, ClipboardCheck, ClipboardPlus, DoorOpen, FileText, HeartPulse, Loader2, Pill, ReceiptText, RefreshCw, ShieldAlert, ShieldCheck, Stethoscope, UserRoundPlus, UsersRound, WalletCards } from 'lucide-react'
 import { useOrgStore } from '@/stores/orgStore'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -55,6 +55,16 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
 }
 
 const inputClass = 'mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-950 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100'
+
+const appointmentStatusCopy: Record<string, string> = {
+  created: 'Новая',
+  confirmed: 'Подтверждена',
+  arrived: 'Пациент в клинике',
+  started: 'На приеме',
+  completed: 'Завершена',
+  canceled: 'Отменена',
+  no_show: 'Не явился',
+}
 
 function toDateTimeLocalValue(date: Date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -583,13 +593,15 @@ export default function ClinicalWorkspacePage() {
 
   const todayAppointments = appointments.filter((appointment) =>
     new Date(appointment.starts_at).toDateString() === new Date().toDateString(),
-  ).length
+  )
+  const todayAppointmentsCount = todayAppointments.length
   const availableDoctors = employees.filter((employee) =>
     ['clinic_founder', 'clinic_ceo', 'chief_doctor', 'doctor'].includes(employee.role_code),
   )
-  const todaySlots = scheduleSlots.filter((slot) =>
+  const todaySlotsList = scheduleSlots.filter((slot) =>
     new Date(slot.starts_at).toDateString() === new Date().toDateString(),
-  ).length
+  )
+  const todaySlots = todaySlotsList.length
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? null
   const filteredPatients = patients.filter((patient) => {
     const query = patientSearch.trim().toLowerCase()
@@ -657,21 +669,225 @@ export default function ClinicalWorkspacePage() {
     })
     .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())
 
+  const now = Date.now()
+  const activeAppointments = appointments.filter((appointment) => isActiveAppointmentStatus(appointment.status))
+  const overdueAppointments = activeAppointments.filter((appointment) => new Date(appointment.starts_at).getTime() < now)
+  const completedToday = todayAppointments.filter((appointment) => appointment.status === 'completed').length
+  const createdToday = todayAppointments.filter((appointment) => appointment.status === 'created').length
+  const inClinicToday = todayAppointments.filter((appointment) => ['arrived', 'started'].includes(appointment.status)).length
+  const confirmedToday = todayAppointments.filter((appointment) => appointment.status === 'confirmed').length
+  const nextAppointments = todayAppointments
+    .filter((appointment) => isActiveAppointmentStatus(appointment.status))
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+    .slice(0, 4)
+  const todayLoadPercent = todaySlots > 0
+    ? Math.min(100, Math.round((todayAppointmentsCount / todaySlots) * 100))
+    : todayAppointmentsCount > 0 ? 100 : 0
+  const completionPercent = todayAppointmentsCount > 0
+    ? Math.round((completedToday / todayAppointmentsCount) * 100)
+    : 0
+  const recordsToday = medicalRecords.filter((record) =>
+    new Date(record.created_at).toDateString() === new Date().toDateString(),
+  ).length
+  const clinicalPulse = [
+    { label: 'Новые', value: createdToday, tone: 'mint' },
+    { label: 'Подтверждены', value: confirmedToday, tone: 'blue' },
+    { label: 'В клинике', value: inClinicToday, tone: 'amber' },
+    { label: 'Завершены', value: completedToday, tone: 'slate' },
+  ]
+  const workflowStages = [
+    { icon: CalendarCheck2, title: 'Запись', text: 'Пациент сразу попадает в календарь врача и кабинет.' },
+    { icon: HeartPulse, title: 'Карта', text: 'История, диагноз, протокол и назначения в одном пациентском контексте.' },
+    { icon: WalletCards, title: 'Оплата', text: 'Визит можно довести до счета, оплаты и закрытия смены.' },
+    { icon: ClipboardCheck, title: 'KPI', text: 'Руководитель видит нагрузку, дисциплину и качество работы.' },
+  ]
+  const selectedPatientFlags = selectedPatient
+    ? [
+      {
+        label: selectedPatientRecords.length > 0 ? 'Медкарта активна' : 'Нет медзаписей',
+        value: selectedPatientRecords.length > 0 ? `${selectedPatientRecords.length} записей` : 'Нужен первый протокол',
+        tone: selectedPatientRecords.length > 0 ? 'good' : 'warn',
+      },
+      {
+        label: selectedNextAppointment ? 'Следующий визит' : 'Без записи',
+        value: selectedNextAppointment
+          ? new Date(selectedNextAppointment.starts_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : 'Запланируйте прием',
+        tone: selectedNextAppointment ? 'blue' : 'warn',
+      },
+      {
+        label: 'Документы',
+        value: `${generatedDocs.filter((doc) => doc.patient_profile_id === selectedPatient.id).length} выпущено`,
+        tone: 'neutral',
+      },
+    ]
+    : []
+  const selectedPatientTimeline = selectedPatient
+    ? [
+      ...selectedPatientAppointments.map((appointment) => ({
+        id: `appointment-${appointment.id}`,
+        date: appointment.starts_at,
+        label: appointmentStatusCopy[appointment.status] ?? appointment.status,
+        title: appointment.reason || 'Прием без причины',
+        meta: `Прием #${appointment.id}`,
+        tone: appointment.status === 'completed' ? 'done' : appointment.status === 'canceled' ? 'danger' : 'active',
+      })),
+      ...selectedPatientRecords.map((record) => ({
+        id: `record-${record.id}`,
+        date: record.created_at,
+        label: 'Медкарта',
+        title: record.diagnosis || 'Запись без диагноза',
+        meta: record.conclusion || 'Заключение не заполнено',
+        tone: 'record',
+      })),
+      ...generatedDocs
+        .filter((doc) => doc.patient_profile_id === selectedPatient.id)
+        .map((doc) => ({
+          id: `document-${doc.id}`,
+          date: doc.created_at,
+          label: 'Документ',
+          title: doc.title,
+          meta: `Документ #${doc.id}`,
+          tone: 'document',
+        })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    : []
+  const selectedPatientDocuments = selectedPatient
+    ? generatedDocs.filter((doc) => doc.patient_profile_id === selectedPatient.id)
+    : []
+  const selectedPatientVisitProgress = selectedPatient
+    ? Math.min(
+      100,
+      (selectedPatientAppointments.length > 0 ? 25 : 0)
+      + (selectedPatientRecords.length > 0 ? 35 : 0)
+      + (selectedPatientDocuments.length > 0 ? 20 : 0)
+      + (selectedNextAppointment ? 20 : 0),
+    )
+    : 0
+  const selectedPatientRevenueEstimate = selectedPatientAppointments.reduce((sum, appointment) => {
+    const service = services.find((item) => item.id === appointment.service_id)
+    return sum + Number(service?.price ?? 0)
+  }, 0)
+  const doctorVisitSteps = [
+    {
+      icon: Stethoscope,
+      title: '1. Начать прием',
+      text: selectedNextAppointment
+        ? `Открыть визит ${new Date(selectedNextAppointment.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+        : 'Создайте запись, чтобы открыть прием врача.',
+      state: selectedNextAppointment ? 'ready' : 'muted',
+    },
+    {
+      icon: ClipboardPlus,
+      title: '2. Заполнить протокол',
+      text: selectedPatientRecords[0]?.diagnosis || 'Жалобы, анамнез, диагноз, назначения.',
+      state: selectedPatientRecords.length > 0 ? 'ready' : 'active',
+    },
+    {
+      icon: FileText,
+      title: '3. Выпустить документ',
+      text: selectedPatientDocuments[0]?.title || 'Протокол приема, справка или направление.',
+      state: selectedPatientDocuments.length > 0 ? 'ready' : 'active',
+    },
+    {
+      icon: ReceiptText,
+      title: '4. Закрыть оплату',
+      text: selectedPatientRevenueEstimate > 0
+        ? `Плановая сумма: ${selectedPatientRevenueEstimate.toLocaleString('ru-RU')} ₸`
+        : 'Укажите услугу, чтобы видеть сумму визита.',
+      state: selectedPatientRevenueEstimate > 0 ? 'ready' : 'muted',
+    },
+  ]
+  const directorSignals = [
+    { label: 'Загрузка врачей', value: `${todayLoadPercent}%`, helper: `${todayAppointmentsCount} записей / ${todaySlots} слотов` },
+    { label: 'Неявки и отмены', value: String(todayAppointments.filter((appointment) => ['canceled', 'no_show'].includes(appointment.status)).length), helper: 'контроль дисциплины записи' },
+    { label: 'Медкарты сегодня', value: String(recordsToday), helper: 'сколько приемов оформлено врачом' },
+    { label: 'Плановая выручка', value: `${appointments.reduce((sum, appointment) => {
+      const service = services.find((item) => item.id === appointment.service_id)
+      return sum + Number(service?.price ?? 0)
+    }, 0).toLocaleString('ru-RU')} ₸`, helper: 'по выбранным услугам' },
+  ]
+  const receptionQueue = todayAppointments
+    .filter((appointment) => ['created', 'confirmed', 'arrived', 'started'].includes(appointment.status))
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+    .slice(0, 5)
+  const paymentPipeline = [
+    { icon: CalendarCheck2, label: 'Записать', value: `${createdToday + confirmedToday}`, hint: 'ожидают визита' },
+    { icon: BadgeCheck, label: 'Принять', value: `${inClinicToday}`, hint: 'пациент в клинике' },
+    { icon: Pill, label: 'Прием', value: `${todayAppointments.filter((appointment) => appointment.status === 'started').length}`, hint: 'у врача сейчас' },
+    { icon: ReceiptText, label: 'Оплатить', value: `${completedToday}`, hint: 'готовы к закрытию' },
+  ]
+
   return (
     <div className="mis-workspace clinical-workspace space-y-6">
-      <section className="mis-command-panel clinical-command-panel">
-        <div>
-          <p className="mis-kicker">Clinical Command Center</p>
-          <h1>Клинический кабинет</h1>
-          <p>Рабочая смена врача и администратора: пациенты, календарь, приёмы, кабинеты, медкарта и документы без лишнего переключения контекста.</p>
+      <section className="clinical-os-hero">
+        <div className="clinical-os-hero__copy">
+          <p className="mis-kicker">QorMed Clinical OS</p>
+          <h1>Рабочий день клиники в одном управляемом экране</h1>
+          <p>
+            Администратор видит очередь, врач открывает карту пациента, руководитель контролирует загрузку,
+            просрочки, документы и KPI без переключения между разрозненными таблицами.
+          </p>
+          <div className="clinical-os-hero__chips" aria-label="Ключевые возможности">
+            <span><ShieldCheck className="h-4 w-4" /> защищенный контур</span>
+            <span><Activity className="h-4 w-4" /> живая смена</span>
+            <span><BadgeCheck className="h-4 w-4" /> стандартизированный прием</span>
+          </div>
         </div>
-        <div className="mis-command-actions">
-          <Button onClick={() => void refreshClinicalData()} disabled={!clinicId || loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            {loading ? 'Загрузка...' : 'Обновить'}
-          </Button>
-          <a className="mis-soft-button" href="#appointments">Приёмы</a>
-          <a className="mis-soft-button" href="#clinical-documents">Документы</a>
+
+        <div className="clinical-shift-panel" aria-label="Сводка рабочей смены">
+          <div className="clinical-shift-panel__top">
+            <div>
+              <p>Смена сегодня</p>
+              <strong>{todayAppointmentsCount}</strong>
+            </div>
+            <Button onClick={() => void refreshClinicalData()} disabled={!clinicId || loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              {loading ? 'Загрузка...' : 'Синхронизировать'}
+            </Button>
+          </div>
+          <div className="clinical-load-meter">
+            <div className="clinical-load-meter__label">
+              <span>Загрузка расписания</span>
+              <b>{todayLoadPercent}%</b>
+            </div>
+            <div className="clinical-load-meter__track">
+              <span style={{ width: `${todayLoadPercent}%` }} />
+            </div>
+          </div>
+          <div className="clinical-pulse-grid">
+            {clinicalPulse.map((item) => (
+              <div key={item.label} className={`clinical-pulse-card clinical-pulse-card--${item.tone}`}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="clinical-next-list">
+            <div className="clinical-next-list__head">
+              <span>Ближайшие визиты</span>
+              <a href="#appointments">Все приёмы</a>
+            </div>
+            {nextAppointments.length > 0 ? nextAppointments.map((appointment) => {
+              const patient = patients.find((item) => item.id === appointment.patient_profile_id)
+              return (
+                <button
+                  key={appointment.id}
+                  type="button"
+                  onClick={() => handleAppointmentSelect(appointment)}
+                  className="clinical-next-appointment"
+                >
+                  <span>{new Date(appointment.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <strong>
+                    {patient ? `${patient.person.last_name} ${patient.person.first_name}` : `Пациент #${appointment.patient_profile_id}`}
+                  </strong>
+                  <em>{appointmentStatusCopy[appointment.status] ?? appointment.status}</em>
+                </button>
+              )
+            }) : (
+              <p className="clinical-empty-note">На сегодня активных визитов нет.</p>
+            )}
+          </div>
         </div>
       </section>
 
@@ -684,26 +900,103 @@ export default function ClinicalWorkspacePage() {
         <a href="#clinical-documents">Документы</a>
       </nav>
 
-      <section className="mis-metric-grid grid gap-4 md:grid-cols-4">
-        <div className="mis-stat-card p-5">
+      <section className="clinical-kpi-grid">
+        <div className="mis-stat-card clinical-kpi-card p-5">
           <UsersRound className="h-6 w-6 text-cyan-700" />
           <p className="mt-4 text-sm text-slate-500">Пациенты</p>
           <p className="text-3xl font-bold text-slate-950">{patients.length}</p>
         </div>
-        <div className="mis-stat-card p-5">
+        <div className="mis-stat-card clinical-kpi-card p-5">
           <CalendarCheck2 className="h-6 w-6 text-blue-700" />
           <p className="mt-4 text-sm text-slate-500">Записи сегодня</p>
-          <p className="text-3xl font-bold text-slate-950">{todayAppointments}</p>
+          <p className="text-3xl font-bold text-slate-950">{todayAppointmentsCount}</p>
         </div>
-        <div className="mis-stat-card p-5">
+        <div className="mis-stat-card clinical-kpi-card p-5">
           <FileText className="h-6 w-6 text-emerald-700" />
-          <p className="mt-4 text-sm text-slate-500">Записи медкарты</p>
-          <p className="text-3xl font-bold text-slate-950">{medicalRecords.length}</p>
+          <p className="mt-4 text-sm text-slate-500">Медкарта сегодня</p>
+          <p className="text-3xl font-bold text-slate-950">{recordsToday}</p>
         </div>
-        <div className="mis-stat-card p-5">
+        <div className="mis-stat-card clinical-kpi-card p-5">
           <CalendarClock className="h-6 w-6 text-indigo-700" />
-          <p className="mt-4 text-sm text-slate-500">Слоты расписания</p>
-          <p className="text-3xl font-bold text-slate-950">{scheduleSlots.length}</p>
+          <p className="mt-4 text-sm text-slate-500">Просроченные SLA</p>
+          <p className="text-3xl font-bold text-slate-950">{overdueAppointments.length}</p>
+        </div>
+        <div className="mis-stat-card clinical-kpi-card clinical-kpi-card--wide p-5">
+          <Activity className="h-6 w-6 text-emerald-700" />
+          <p className="mt-4 text-sm text-slate-500">Закрытие дня</p>
+          <p className="text-3xl font-bold text-slate-950">{completionPercent}%</p>
+          <p className="mt-2 text-xs font-semibold text-slate-500">{completedToday} из {todayAppointmentsCount} визитов завершены</p>
+        </div>
+      </section>
+
+      <section className="clinical-flow-strip" aria-label="Сценарий работы клиники">
+        {workflowStages.map((stage, index) => {
+          const Icon = stage.icon
+          return (
+            <article key={stage.title} className="clinical-flow-step">
+              <div className="clinical-flow-step__icon"><Icon className="h-5 w-5" /></div>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <h3>{stage.title}</h3>
+              <p>{stage.text}</p>
+            </article>
+          )
+        })}
+      </section>
+
+      <section className="clinical-director-board" aria-label="Панель руководителя">
+        <div className="clinical-director-board__intro">
+          <p className="mis-kicker">CEO view</p>
+          <h2>Руководитель видит не формы, а состояние бизнеса</h2>
+          <p>Загрузка врачей, дисциплина записей, оформление медкарт и плановая выручка собираются из клинического потока автоматически.</p>
+        </div>
+        <div className="clinical-director-signals">
+          {directorSignals.map((signal) => (
+            <article key={signal.label}>
+              <span>{signal.label}</span>
+              <strong>{signal.value}</strong>
+              <p>{signal.helper}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="clinical-reception-board" aria-label="Ресепшен и оплата">
+        <div className="clinical-panel-head">
+          <div>
+            <p>Reception flow</p>
+            <h4>Ресепшен ведет пациента от записи до оплаты</h4>
+          </div>
+          <WalletCards className="h-5 w-5 text-emerald-700" />
+        </div>
+        <div className="clinical-payment-pipeline">
+          {paymentPipeline.map((step) => {
+            const Icon = step.icon
+            return (
+              <article key={step.label}>
+                <div><Icon className="h-5 w-5" /></div>
+                <span>{step.label}</span>
+                <strong>{step.value}</strong>
+                <p>{step.hint}</p>
+              </article>
+            )
+          })}
+        </div>
+        <div className="clinical-reception-queue">
+          {receptionQueue.map((appointment) => {
+            const patient = patients.find((item) => item.id === appointment.patient_profile_id)
+            const service = services.find((item) => item.id === appointment.service_id)
+            return (
+              <button key={appointment.id} type="button" onClick={() => handleAppointmentSelect(appointment)}>
+                <span>{new Date(appointment.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                <strong>{patient ? `${patient.person.last_name} ${patient.person.first_name}` : `Пациент #${appointment.patient_profile_id}`}</strong>
+                <em>{service?.price ? `${Number(service.price).toLocaleString('ru-RU')} ₸` : 'без счета'}</em>
+                <small>{appointmentStatusCopy[appointment.status] ?? appointment.status}</small>
+              </button>
+            )
+          })}
+          {receptionQueue.length === 0 ? (
+            <p className="clinical-empty-note clinical-empty-note--light">Очередь ресепшена на сегодня пустая.</p>
+          ) : null}
         </div>
       </section>
 
@@ -804,6 +1097,25 @@ export default function ClinicalWorkspacePage() {
                 </div>
               </div>
 
+              <div className="clinical-patient-flags" aria-label="Клинические сигналы пациента">
+                {selectedPatientFlags.map((flag) => (
+                  <div key={flag.label} className={`clinical-patient-flag clinical-patient-flag--${flag.tone}`}>
+                    <span>{flag.label}</span>
+                    <strong>{flag.value}</strong>
+                  </div>
+                ))}
+              </div>
+
+              <div className="clinical-readiness-panel">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Готовность визита</p>
+                  <h4 className="mt-1 text-lg font-black text-slate-950">Пациентский контур заполнен на {selectedPatientVisitProgress}%</h4>
+                </div>
+                <div className="clinical-readiness-meter" aria-hidden="true">
+                  <span style={{ width: `${selectedPatientVisitProgress}%` }} />
+                </div>
+              </div>
+
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-3xl border border-white/70 bg-white/85 p-4">
                   <p className="text-xs font-semibold text-slate-500">Все записи</p>
@@ -823,47 +1135,69 @@ export default function ClinicalWorkspacePage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-3xl border border-white/70 bg-white/90 p-4">
-                  <h4 className="font-bold text-slate-950">История приёмов</h4>
-                  <div className="mt-3 space-y-2">
-                    {selectedPatientAppointments.slice(0, 5).map((appointment) => (
-                      <button
-                        key={appointment.id}
-                        type="button"
-                        onClick={() => handleAppointmentSelect(appointment)}
-                        className="w-full rounded-2xl bg-slate-50 px-3 py-3 text-left text-sm transition hover:bg-blue-50"
-                      >
-                        <span className="font-semibold text-slate-900">
-                          {new Date(appointment.starts_at).toLocaleString('ru-RU')}
-                        </span>
-                        <span className="mt-1 block text-xs text-slate-500">
-                          {appointment.reason || 'Без причины'} · {appointment.status}
-                        </span>
-                      </button>
-                    ))}
-                    {selectedPatientAppointments.length === 0 ? (
-                      <p className="rounded-2xl bg-slate-50 px-3 py-4 text-sm text-slate-500">Записей пока нет.</p>
-                    ) : null}
+              <div className="clinical-patient-cockpit">
+                <div className="clinical-doctor-flow">
+                  <div className="clinical-panel-head">
+                    <div>
+                      <p>Прием врача</p>
+                      <h4>От пациента до закрытого протокола</h4>
+                    </div>
+                    <Stethoscope className="h-5 w-5 text-emerald-700" />
+                  </div>
+                  <div className="clinical-doctor-steps">
+                    {doctorVisitSteps.map((step) => {
+                      const Icon = step.icon
+                      return (
+                        <div key={step.title} className={`clinical-doctor-step clinical-doctor-step--${step.state}`}>
+                          <div><Icon className="h-5 w-5" /></div>
+                          <section>
+                            <h5>{step.title}</h5>
+                            <p>{step.text}</p>
+                          </section>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => {
+                        if (selectedNextAppointment) handleAppointmentSelect(selectedNextAppointment)
+                        setRecordPatientId(String(selectedPatient.id))
+                        toast.info('Контекст приема готов: пациент, визит и медкарта связаны')
+                      }}
+                    >
+                      Открыть прием
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setRenderPatientId(String(selectedPatient.id))
+                        toast.info('Пациент выбран для выпуска документа')
+                      }}
+                    >
+                      Документ
+                    </Button>
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-white/70 bg-white/90 p-4">
-                  <h4 className="font-bold text-slate-950">Медицинские записи</h4>
-                  <div className="mt-3 space-y-2">
-                    {selectedPatientRecords.slice(0, 5).map((record) => (
-                      <div key={record.id} className="rounded-2xl bg-slate-50 px-3 py-3 text-sm">
-                        <p className="font-semibold text-slate-900">{record.diagnosis || 'Без диагноза'}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {new Date(record.created_at).toLocaleString('ru-RU')}
-                        </p>
-                        {record.conclusion ? (
-                          <p className="mt-2 text-xs leading-relaxed text-slate-600">{record.conclusion}</p>
-                        ) : null}
-                      </div>
+                <div className="clinical-timeline-panel">
+                  <div className="clinical-panel-head">
+                    <div>
+                      <p>Timeline пациента</p>
+                      <h4>Приемы, записи и документы</h4>
+                    </div>
+                    <Activity className="h-5 w-5 text-cyan-700" />
+                  </div>
+                  <div className="clinical-patient-timeline">
+                    {selectedPatientTimeline.slice(0, 8).map((item) => (
+                      <article key={item.id} className={`clinical-timeline-item clinical-timeline-item--${item.tone}`}>
+                        <span>{new Date(item.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.label} · {item.meta}</p>
+                      </article>
                     ))}
-                    {selectedPatientRecords.length === 0 ? (
-                      <p className="rounded-2xl bg-slate-50 px-3 py-4 text-sm text-slate-500">Медкарта пока пустая.</p>
+                    {selectedPatientTimeline.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-3 py-4 text-sm text-slate-500">История пациента пока пустая.</p>
                     ) : null}
                   </div>
                 </div>

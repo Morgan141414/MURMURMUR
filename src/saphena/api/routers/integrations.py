@@ -4,7 +4,12 @@ from fastapi import APIRouter, Header, HTTPException, status
 from sqlalchemy import select
 
 from saphena.api.deps import DbSession
-from saphena.api.schemas import TetisClinicSyncRequest, TetisClinicSyncResponse
+from saphena.api.schemas import (
+    TetisClinicSyncRequest,
+    TetisClinicSyncResponse,
+    TetisEmployeeSyncRequest,
+    TetisEmployeeSyncResponse,
+)
 from saphena.core.config import get_settings
 from saphena.core.security import hash_password, utcnow
 from saphena.modules.enums import AccountStatus, ClinicApplicationStatus, ClinicStatus
@@ -53,6 +58,7 @@ def _ensure_founder_account(db: DbSession, payload: TetisClinicSyncRequest) -> t
     created_account = False
     if person is None:
         person = Person(
+            qtrix_user_id=None,
             iin=founder.iin,
             first_name=founder.first_name,
             last_name=founder.last_name,
@@ -82,6 +88,55 @@ def _ensure_founder_account(db: DbSession, payload: TetisClinicSyncRequest) -> t
         db.add(account)
         db.flush()
         created_account = True
+    elif account.status != AccountStatus.active:
+        account.status = AccountStatus.active
+        db.add(account)
+    return account, created_account
+
+
+def _ensure_employee_account(db: DbSession, payload: TetisEmployeeSyncRequest) -> tuple[Account, bool]:
+    person = db.scalar(select(Person).where(Person.qtrix_user_id == payload.person.qtrix_user_id))
+    if person is None:
+        person = db.scalar(select(Person).where(Person.iin == payload.person.iin))
+    created_account = False
+
+    if person is None:
+        person = Person(
+            qtrix_user_id=payload.person.qtrix_user_id,
+            iin=payload.person.iin,
+            first_name=payload.person.first_name,
+            last_name=payload.person.last_name,
+            middle_name=payload.person.middle_name,
+            phone=payload.person.phone,
+            email=str(payload.person.email) if payload.person.email else None,
+        )
+        db.add(person)
+        db.flush()
+    else:
+        person.qtrix_user_id = payload.person.qtrix_user_id
+        person.iin = payload.person.iin
+        person.first_name = payload.person.first_name
+        person.last_name = payload.person.last_name
+        person.middle_name = payload.person.middle_name
+        if payload.person.phone is not None:
+            person.phone = payload.person.phone
+        if payload.person.email is not None:
+            person.email = str(payload.person.email)
+        db.add(person)
+
+    account = db.scalar(select(Account).where(Account.person_id == person.id))
+    if account is None:
+        account = Account(
+            person_id=person.id,
+            password_hash=hash_password(secrets.token_urlsafe(24)),
+            status=AccountStatus.active if payload.is_active else AccountStatus.blocked,
+        )
+        db.add(account)
+        db.flush()
+        created_account = True
+    else:
+        account.status = AccountStatus.active if payload.is_active else AccountStatus.blocked
+        db.add(account)
     return account, created_account
 
 
@@ -95,11 +150,19 @@ def sync_tetis_clinic(
     actor = _authorize_tetis_sync(db, authorization=authorization, x_tetis_token=x_tetis_token)
     founder_account, created_founder_account = _ensure_founder_account(db, payload)
 
-    clinic = db.scalar(select(Clinic).where(Clinic.bin_iin == payload.bin_iin))
+    clinic = None
+    if payload.external_id:
+        clinic = db.scalar(select(Clinic).where(Clinic.qtrix_org_id == payload.external_id))
+    if clinic is None:
+        clinic = db.scalar(select(Clinic).where(Clinic.bin_iin == payload.bin_iin))
+
     created_clinic = False
     if payload.status == ClinicApplicationStatus.approved:
         if clinic is None:
             clinic = Clinic(
+                qtrix_org_id=payload.external_id,
+                qtrix_sync_status="synced",
+                qtrix_last_synced_at=utcnow(),
                 name=payload.name,
                 legal_name=payload.legal_name,
                 bin_iin=payload.bin_iin,
@@ -111,8 +174,12 @@ def sync_tetis_clinic(
             db.flush()
             created_clinic = True
         else:
+            clinic.qtrix_org_id = payload.external_id or clinic.qtrix_org_id
+            clinic.qtrix_sync_status = "synced"
+            clinic.qtrix_last_synced_at = utcnow()
             clinic.name = payload.name
             clinic.legal_name = payload.legal_name
+            clinic.bin_iin = payload.bin_iin
             clinic.address = payload.address
             clinic.contacts = payload.contacts
             clinic.status = ClinicStatus.active
@@ -169,19 +236,21 @@ def sync_tetis_clinic(
                 account_id=founder_account.id,
                 clinic_id=clinic.id,
                 role_code=RoleCode.clinic_founder,
+                qtrix_org_id=payload.external_id,
                 position="Founder",
             )
             db.add(membership)
             db.flush()
             created_founder_membership = True
         else:
+            membership.qtrix_org_id = payload.external_id or membership.qtrix_org_id
             membership.is_active = True
             db.add(membership)
 
     create_notification(
         db,
         account_id=founder_account.id,
-        title="Clinic synced from Tetis",
+        title="Clinic synced from Qtrix",
         body=f"Clinic '{payload.name}' status is {payload.status.value}.",
     )
     audit(
@@ -204,4 +273,83 @@ def sync_tetis_clinic(
         created_clinic=created_clinic,
         created_founder_account=created_founder_account,
         created_founder_membership=created_founder_membership,
+    )
+
+
+@router.post("/employees", response_model=TetisEmployeeSyncResponse)
+def sync_tetis_employee(
+    payload: TetisEmployeeSyncRequest,
+    db: DbSession,
+    authorization: str | None = Header(default=None),
+    x_tetis_token: str | None = Header(default=None),
+) -> TetisEmployeeSyncResponse:
+    actor = _authorize_tetis_sync(db, authorization=authorization, x_tetis_token=x_tetis_token)
+    clinic = db.scalar(select(Clinic).where(Clinic.qtrix_org_id == payload.qtrix_org_id))
+    if clinic is None:
+        clinic = db.scalar(select(Clinic).where(Clinic.bin_iin == payload.clinic_bin_iin))
+    if clinic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clinic is not synced")
+
+    account, created_account = _ensure_employee_account(db, payload)
+    membership = db.scalar(
+        select(ClinicMembership).where(ClinicMembership.qtrix_membership_id == payload.qtrix_membership_id)
+    )
+    if membership is None:
+        membership = db.scalar(
+            select(ClinicMembership).where(
+                ClinicMembership.account_id == account.id,
+                ClinicMembership.clinic_id == clinic.id,
+                ClinicMembership.role_code == payload.role_code,
+            )
+        )
+
+    created_membership = False
+    if membership is None:
+        membership = ClinicMembership(
+            qtrix_membership_id=payload.qtrix_membership_id,
+            qtrix_user_id=payload.person.qtrix_user_id,
+            qtrix_org_id=payload.qtrix_org_id,
+            qtrix_role=payload.qtrix_role,
+            account_id=account.id,
+            clinic_id=clinic.id,
+            role_code=payload.role_code,
+            department=payload.department,
+            position=payload.position,
+            is_active=payload.is_active,
+        )
+        db.add(membership)
+        db.flush()
+        created_membership = True
+    else:
+        membership.qtrix_membership_id = payload.qtrix_membership_id
+        membership.qtrix_user_id = payload.person.qtrix_user_id
+        membership.qtrix_org_id = payload.qtrix_org_id
+        membership.qtrix_role = payload.qtrix_role
+        membership.account_id = account.id
+        membership.clinic_id = clinic.id
+        membership.role_code = payload.role_code
+        membership.department = payload.department
+        membership.position = payload.position
+        membership.is_active = payload.is_active
+        db.add(membership)
+
+    audit(
+        db,
+        action="tetis.employee_sync" if payload.is_active else "tetis.employee_deactivated",
+        entity_type="clinic_membership",
+        actor=actor,
+        entity_id=membership.id,
+        clinic_id=clinic.id,
+        details=f"qtrix_membership_id={payload.qtrix_membership_id}; role={payload.qtrix_role}->{payload.role_code.value}",
+    )
+    db.commit()
+
+    return TetisEmployeeSyncResponse(
+        clinic_id=clinic.id,
+        account_id=account.id,
+        membership_id=membership.id,
+        role_code=membership.role_code,
+        is_active=membership.is_active,
+        created_account=created_account,
+        created_membership=created_membership,
     )

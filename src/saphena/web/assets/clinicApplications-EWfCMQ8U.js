@@ -1,1 +1,0 @@
-import{Y as c}from"./index-BtZa94vh.js";function a(){return c.get("/clinics/applications")}function p(i){return c.post("/clinics/applications",i)}function l(i,n){return c.patch(`/clinics/applications/${i}`,n)}export{p as c,a as l,l as m};

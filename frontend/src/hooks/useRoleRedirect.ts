@@ -4,7 +4,7 @@ import { useOrgStore } from '@/stores/orgStore'
 import { useContextStore } from '@/stores/contextStore'
 import { useAuthStore } from '@/stores/authStore'
 import { ROLE_DEFAULT_SHELL } from '@/types'
-import type { ShellType } from '@/types'
+import type { OrgRole, ShellType } from '@/types'
 
 const SHELL_ROUTES: Record<ShellType, string> = {
   platform: '/platform',
@@ -12,11 +12,29 @@ const SHELL_ROUTES: Record<ShellType, string> = {
   department: '/department',
 }
 
+const ROLE_HOME_ROUTES: Partial<Record<OrgRole, string>> = {
+  founder: '/clinic',
+  ceo: '/clinic',
+  admin: '/clinic',
+  clinic_founder: '/clinic',
+  clinic_ceo: '/clinic',
+  chief_doctor: '/clinic',
+  doctor: '/clinic/visits/visit-1042',
+  reception_admin: '/clinic/calendar',
+  call_center: '/clinic/calendar',
+  accountant: '/clinic/payments',
+  patient: '/patient',
+  support_agent: '/support',
+  sales_director: '/company/crm',
+  sales_manager: '/company/crm',
+  sales_support: '/company/crm',
+}
+
 /**
  * Redirects the user from /dashboard to their role-appropriate shell dashboard.
  * Called on DashboardPage when an org is selected.
  *
- * All roles redirect to /company.
+ * Clinical roles land on their primary workflow route.
  * If no org is selected, stays on personal dashboard.
  */
 export function useRoleRedirect() {
@@ -40,7 +58,7 @@ export function useRoleRedirect() {
 
     const role = current.role
     const targetShell = ROLE_DEFAULT_SHELL[role]
-    const targetRoute = SHELL_ROUTES[targetShell] ?? '/company'
+    const targetRoute = ROLE_HOME_ROUTES[role] ?? SHELL_ROUTES[targetShell] ?? '/company'
 
     setShell(targetShell)
     navigate(targetRoute, { replace: true })

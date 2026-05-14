@@ -12,6 +12,14 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   '/company/approvals': 'nav.approvals',
   '/company/join-requests': 'nav.joinRequests',
   '/company/documents': 'nav.documents',
+  '/company/clinical': 'clinical.title',
+  '/clinic': 'nav.clinicCommandCenter',
+  '/clinic/calendar': 'nav.calendar',
+  '/clinic/patients': 'nav.patients',
+  '/clinic/payments': 'nav.clinicPayments',
+  '/clinic/documents': 'nav.clinicalDocuments',
+  '/clinic/analytics': 'nav.clinicAnalytics',
+  '/clinic/settings': 'nav.clinicSettings',
   '/company/analytics': 'nav.reports',
   '/company/hr': 'nav.hrWorkspace',
   '/company/subscription': 'tariffs.title',
@@ -37,6 +45,12 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   '/forgot-password': 'auth.forgotPassword',
 }
 
+const ROUTE_TITLE_OVERRIDES: Record<string, string> = {
+  '/company/clinical': 'Клинический центр',
+  '/clinic': 'Клинический центр',
+  '/clinic/visits/visit-1042': 'Прием врача',
+}
+
 export function usePageTitle() {
   const { t } = useTranslation()
   const location = useLocation()
@@ -54,10 +68,14 @@ export function usePageTitle() {
         if (lastSegment === 'board') titleKey = 'nav.board'
         else if (lastSegment === 'tasks') titleKey = 'nav.tasks'
         else if (lastSegment === 'members') titleKey = 'nav.members'
+      } else if (segments[1] === 'clinic' && segments[2] === 'patients' && segments[3]) {
+        titleKey = 'nav.patientCard'
+      } else if (segments[1] === 'clinic' && segments[2] === 'visits' && segments[3]) {
+        titleKey = 'nav.visitWorkspace'
       }
     }
 
-    const pageTitle = titleKey ? t(titleKey) : null
-    document.title = pageTitle ? `${pageTitle} — ProjectsControl` : 'ProjectsControl'
+    const pageTitle = ROUTE_TITLE_OVERRIDES[path] ?? (titleKey ? t(titleKey) : null)
+    document.title = pageTitle ? `${pageTitle} — QorMed M.I.S.` : 'QorMed M.I.S.'
   }, [location.pathname, t])
 }

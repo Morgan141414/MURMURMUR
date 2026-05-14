@@ -1630,6 +1630,7 @@ def create_support_thread(
         status=SupportThreadStatus.open,
         priority=payload.priority,
         last_message_at=utcnow(),
+        request_meta=payload.request_meta,
     )
     db.add(item)
     db.flush()

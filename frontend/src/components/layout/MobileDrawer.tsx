@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router'
-import { X, LogOut, Settings, Moon, Sun, UserCircle, LifeBuoy, Search, MessageSquare } from 'lucide-react'
+import { X, LogOut, Settings, Moon, Sun, UserCircle, LifeBuoy, Search, MessageSquare, HeartPulse } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/uiStore'
@@ -111,15 +111,20 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
         {/* Header */}
         <div className="border-b border-border px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <HeartPulse className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
               <span className="text-[15px] font-semibold tracking-tight text-foreground">
-                ProjectsControl
+                QorMed M.I.S.
               </span>
-              <p className="mt-1 text-[11px] text-muted-foreground">Workspace OS</p>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">Клиника, пациенты и приемы</p>
+              </div>
             </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -154,42 +159,42 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
         <div className="border-t border-border px-3 py-3 space-y-1">
           <button
             onClick={() => { navigate('/messenger'); onClose() }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <MessageSquare className="h-4 w-4" />
             Мессенджер
           </button>
           <button
             onClick={() => { navigate('/search'); onClose() }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Search className="h-4 w-4" />
             {t('nav.search', 'Поиск')}
           </button>
           <button
             onClick={() => { navigate('/profile'); onClose() }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <UserCircle className="h-4 w-4" />
             {t('nav.personalCabinet')}
           </button>
           <button
             onClick={() => { navigate(settingsPath); onClose() }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Settings className="h-4 w-4" />
             {t('nav.settings')}
           </button>
           <button
             onClick={() => { navigate('/support'); onClose() }}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <LifeBuoy className="h-4 w-4" />
             {t('nav.techSupport')}
           </button>
           <button
             onClick={toggleTheme}
-            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {isDark ? t('sidebar.lightMode') : t('sidebar.darkMode')}
@@ -198,7 +203,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
 
         {/* User area */}
         <div className="border-t border-border px-3 py-3">
-          <div className="soft-inset-ring flex items-center gap-2.5 rounded-2xl border border-border/70 bg-background/80 p-2.5">
+          <div className="soft-inset-ring flex items-center gap-2.5 rounded-md border border-border/70 bg-background/80 p-2.5">
             {avatarUrl ? (
               <AvatarImage src={avatarUrl} name={fullName} className="h-9 w-9 rounded-full object-cover" />
             ) : (

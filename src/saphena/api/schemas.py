@@ -174,6 +174,56 @@ class TetisClinicSyncResponse(BaseModel):
     created_founder_membership: bool
 
 
+class TetisEmployeePersonPayload(BaseModel):
+    qtrix_user_id: str = Field(min_length=1, max_length=120)
+    iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
+
+    @field_validator("iin")
+    @classmethod
+    def validate_employee_iin_checksum(cls, value: str) -> str:
+        if not is_valid_iin(value):
+            raise ValueError("Invalid IIN checksum")
+        return value
+
+
+class TetisEmployeeSyncRequest(BaseModel):
+    qtrix_membership_id: str = Field(min_length=1, max_length=160)
+    qtrix_org_id: str = Field(min_length=1, max_length=120)
+    clinic_bin_iin: str = Field(min_length=12, max_length=12, pattern=r"^\d{12}$")
+    person: TetisEmployeePersonPayload
+    qtrix_role: str = Field(min_length=1, max_length=128)
+    role_code: RoleCode
+    department: str | None = Field(default=None, max_length=120)
+    position: str | None = Field(default=None, max_length=120)
+    is_active: bool = True
+    employee_status: str | None = Field(default=None, max_length=64)
+
+
+class TetisEmployeeSyncResponse(BaseModel):
+    clinic_id: int
+    account_id: int
+    membership_id: int
+    role_code: RoleCode
+    is_active: bool
+    created_account: bool
+    created_membership: bool
+
+
+class TetisTransitionLoginRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=4096)
+
+
+class TetisTransitionLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    account: AccountRead
+
+
 class ClinicBranchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     address: str = Field(min_length=1, max_length=255)
@@ -556,6 +606,7 @@ class SupportThreadCreate(BaseModel):
     body: str = Field(min_length=1)
     request_type: str = Field(default="general", min_length=1, max_length=64)
     priority: SupportPriority = SupportPriority.normal
+    request_meta: dict[str, object] | None = None
 
     @field_validator("subject", "body", "request_type")
     @classmethod
@@ -600,6 +651,7 @@ class SupportThreadRead(BaseModel):
     priority: SupportPriority
     assigned_to_account_id: int | None = None
     last_message_at: datetime | None = None
+    request_meta: dict[str, object] | None = None
     created_at: datetime
     updated_at: datetime
 

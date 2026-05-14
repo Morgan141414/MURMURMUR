@@ -1660,9 +1660,11 @@ export default function HRWorkspacePage() {
     if (!activeOrgId) return
     try {
       const response = await fetchHRDocumentContent(activeOrgId, documentId, action)
+      const contentTypeHeader = response.headers['content-type']
+      const contentType = typeof contentTypeHeader === 'string' ? contentTypeHeader : 'application/octet-stream'
       const blob = response.data instanceof Blob
         ? response.data
-        : new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' })
+        : new Blob([response.data], { type: contentType })
       const blobUrl = URL.createObjectURL(blob)
 
       if (action === 'download') {

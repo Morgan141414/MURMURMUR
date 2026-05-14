@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import {
   Moon, Sun, Settings, LogOut,
   Building2, FolderKanban, UserCircle, LifeBuoy, Search, MessageSquare,
-  ChevronRight,
+  ChevronRight, PanelLeftClose, PanelLeftOpen,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -76,7 +76,7 @@ function MainSidebar() {
 
   const current = activeOrg()
   const settingsPath = current ? '/company/settings' : '/settings'
-  const orgRole = current?.role ?? null
+  const orgRole = location.pathname.startsWith('/patient') ? 'patient' : current?.role ?? null
   const currentShell = shell ?? 'company'
   const isExploreDetail = location.pathname.startsWith('/explore/')
 
@@ -103,7 +103,7 @@ function MainSidebar() {
     : 'U'
 
   const ShellIcon = SHELL_ICONS[currentShell] ?? Building2
-  const shellAccent = SHELL_ACCENT[currentShell] ?? 'bg-primary'
+  const shellAccent = SHELL_ACCENT[currentShell] ?? 'bg-sidebar-primary'
 
   const [messengerUnreadChats, setMessengerUnreadChats] = useState(0)
   const messengerInFlightRef = useRef(false)
@@ -162,19 +162,6 @@ function MainSidebar() {
     }
   }, [activeOrgId])
 
-  useEffect(() => {
-    setSidebarCollapsed(true)
-  }, [setSidebarCollapsed])
-
-  function handleSidebarMouseEnter() {
-    setSidebarCollapsed(false)
-  }
-
-  function handleSidebarMouseLeave() {
-    setSidebarCollapsed(true)
-  }
-
-
   function handleLogout() {
     logout()
     navigate('/login')
@@ -182,23 +169,31 @@ function MainSidebar() {
 
   return (
     <aside
-      onMouseEnter={handleSidebarMouseEnter}
-      onMouseLeave={handleSidebarMouseLeave}
       className={cn(
         'shell-sidebar-surface mis-sidebar group/sidebar relative flex h-screen flex-col transition-[width] duration-200 ease-in-out',
         collapsed ? 'w-[var(--sidebar-collapsed)]' : 'w-[var(--sidebar-width)]',
       )}
     >
+      <button
+        type="button"
+        onClick={() => setSidebarCollapsed(!collapsed)}
+        className="absolute right-2 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent/70 text-sidebar-muted shadow-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
+        title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
+      >
+        {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+      </button>
+
       {/* ═══ Logo & Brand ═══ */}
       <div
         className={cn(
-          'flex items-center gap-3 px-4 py-4',
-          collapsed && 'justify-center px-2',
+          'flex items-center gap-3 py-4 pl-4 pr-12',
+          collapsed && 'justify-center px-2 pt-14',
         )}
       >
         {/* Shell-colored icon */}
         <div className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-md',
           shellAccent,
         )}>
           <ShellIcon className="h-[18px] w-[18px] text-white" />
@@ -210,7 +205,7 @@ function MainSidebar() {
               QorMed M.I.S.
             </span>
             <span className="text-[11px] text-sidebar-muted">
-              Clinical Command Center
+              Медицинская информационная система
             </span>
           </div>
         )}
@@ -279,7 +274,7 @@ function MainSidebar() {
             badgeCount={messengerUnreadChats}
           />
         )}
-        <UtilityLink to="/search" icon={Search} label={t('nav.search', 'Search')} collapsed={collapsed} />
+        <UtilityLink to="/search" icon={Search} label={t('nav.search', 'Поиск')} collapsed={collapsed} />
         <UtilityLink to="/profile" icon={UserCircle} label={t('nav.personalCabinet')} collapsed={collapsed} />
         <UtilityLink to={settingsPath} icon={Settings} label={t('nav.settings')} collapsed={collapsed} />
         {platformRole !== 'moderator' && platformRole !== 'tech_support' && (
@@ -291,7 +286,7 @@ function MainSidebar() {
           type="button"
           onClick={toggleTheme}
           className={cn(
-            'flex w-full items-center gap-2.5 rounded-md px-3 py-[7px] text-[13px] text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground',
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground',
             collapsed && 'justify-center px-0',
           )}
           title={collapsed ? (isDark ? t('sidebar.lightMode') : t('sidebar.darkMode')) : undefined}
@@ -312,7 +307,7 @@ function MainSidebar() {
       <div className="px-3 py-3">
         <div
           className={cn(
-            'flex items-center gap-2.5 rounded-lg p-2 transition-colors hover:bg-sidebar-accent/50',
+            'flex items-center gap-2.5 rounded-md p-2 transition-colors hover:bg-sidebar-accent/70',
             collapsed && 'justify-center p-1.5',
           )}
         >
@@ -396,27 +391,18 @@ function SidebarNavItem({
       onClick={handleNavigate}
       title={collapsed ? t(item.labelKey) : undefined}
       className={cn(
-        'group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-all duration-150',
+        'group relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
         collapsed && 'justify-center px-0',
         active
-          ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-          : 'text-sidebar-muted hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+          ? 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
+          : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
     >
-      {/* Active indicator — small accent bar */}
-      {active && (
-        <div
-          className={cn(
-            'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full',
-            shellAccent,
-          )}
-        />
-      )}
 
       <div className={cn(
         'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
         active
-          ? 'text-sidebar-foreground'
+          ? 'text-sidebar-primary-foreground'
           : 'text-sidebar-muted group-hover:text-sidebar-foreground',
       )}>
         <item.icon className="h-[16px] w-[16px]" />
@@ -427,7 +413,7 @@ function SidebarNavItem({
       )}
 
       {!collapsed && active && (
-        <ChevronRight className="h-3.5 w-3.5 text-sidebar-muted/40" />
+        <ChevronRight className="h-3.5 w-3.5 text-sidebar-primary-foreground/70" />
       )}
     </button>
   )
@@ -460,11 +446,11 @@ function UtilityLink({
       onClick={handleNavigate}
       title={collapsed ? label : undefined}
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-md px-3 py-[7px] text-[13px] transition-all duration-150',
+        'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-150',
         collapsed && 'justify-center px-0',
         active
-          ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-          : 'text-sidebar-muted hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+          ? 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
+          : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
     >
       <div className="relative shrink-0">

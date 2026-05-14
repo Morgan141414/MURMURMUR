@@ -112,6 +112,7 @@ export async function createPersonalThread(data: SupportThreadCreatePayload) {
       body: data.body,
       request_type: data.request_type ?? "general",
       priority: data.priority ?? "normal",
+      request_meta: data.request_meta,
     });
   } catch (error) {
     if (!isLegacyFallbackError(error)) throw error;

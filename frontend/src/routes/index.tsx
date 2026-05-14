@@ -21,6 +21,7 @@ function lazyRoute<T extends ComponentType<unknown>>(loader: () => Promise<{ def
 // ── Auth pages ──
 const LoginPage = lazyRoute(() => import('@/pages/LoginPage'))
 const RegisterPage = lazyRoute(() => import('@/pages/RegisterPage'))
+const PatientRegisterPage = lazyRoute(() => import('@/pages/patient/PatientRegisterPage'))
 const ForgotPasswordPage = lazyRoute(() => import('@/pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazyRoute(() => import('@/pages/auth/ResetPasswordPage'))
 const InvitationAcceptPage = lazyRoute(() => import('@/pages/auth/InvitationAcceptPage'))
@@ -61,6 +62,19 @@ const AuditPage = lazyRoute(() => import('@/pages/admin/AuditPage'))
 const RoleManagementPage = lazyRoute(() => import('@/pages/company/RoleManagementPage'))
 const MyBoardPage = lazyRoute(() => import('@/pages/company/MyBoardPage'))
 const AccountingPage = lazyRoute(() => import('@/pages/company/accounting/AccountingPage'))
+
+// ── QorMed Clinical OS pages ──
+const ClinicDashboardPage = lazyRoute(() => import('@/pages/clinic/ClinicDashboardPage'))
+const ClinicCalendarPage = lazyRoute(() => import('@/pages/clinic/ClinicCalendarPage'))
+const ClinicAppointmentsPage = lazyRoute(() => import('@/pages/clinic/ClinicAppointmentsPage'))
+const ClinicPatientsPage = lazyRoute(() => import('@/pages/clinic/ClinicPatientsPage'))
+const ClinicPatientCardPage = lazyRoute(() => import('@/pages/clinic/ClinicPatientCardPage'))
+const ClinicVisitPage = lazyRoute(() => import('@/pages/clinic/ClinicVisitPage'))
+const ClinicPaymentsPage = lazyRoute(() => import('@/pages/clinic/ClinicPaymentsPage'))
+const ClinicDocumentsPage = lazyRoute(() => import('@/pages/clinic/ClinicDocumentsPage'))
+const ClinicAnalyticsPage = lazyRoute(() => import('@/pages/clinic/ClinicAnalyticsPage'))
+const ClinicSettingsPage = lazyRoute(() => import('@/pages/clinic/ClinicSettingsPage'))
+const PatientPortalPage = lazyRoute(() => import('@/pages/patient/PatientPortalPage'))
 
 // ── CRM pages ──
 const CRMDashboardPage = lazy(() => import('@/pages/crm/CRMDashboardPage'))
@@ -164,7 +178,9 @@ export const router = createBrowserRouter([
 
   // ── Public routes ──
   { path: '/login', element: <W><LoginPage /></W>, errorElement: <RouteErrorElement /> },
+  { path: '/auth', element: <W><LoginPage /></W>, errorElement: <RouteErrorElement /> },
   { path: '/register', element: <W><RegisterPage /></W>, errorElement: <RouteErrorElement /> },
+  { path: '/patient/register', element: <W><PatientRegisterPage /></W>, errorElement: <RouteErrorElement /> },
   { path: '/forgot-password', element: <W><ForgotPasswordPage /></W>, errorElement: <RouteErrorElement /> },
   { path: '/reset-password', element: <W><ResetPasswordPage /></W>, errorElement: <RouteErrorElement /> },
   { path: '/invitation/:token', element: <W><InvitationAcceptPage /></W>, errorElement: <RouteErrorElement /> },
@@ -193,6 +209,11 @@ export const router = createBrowserRouter([
       { path: '/vacancies', element: <W><VacancyCatalogPage /></W> },
       { path: '/vacancies/:id', element: <W><VacancyDetailPage /></W> },
 
+      { path: '/patient', element: <W><PatientPortalPage /></W> },
+      { path: '/patient/records', element: <W><PatientPortalPage /></W> },
+      { path: '/patient/documents', element: <W><PatientPortalPage /></W> },
+      { path: '/patient/support', element: <W><PatientPortalPage /></W> },
+
       // ── Company Shell (guarded) ──
       {
         element: <ShellGuard shell="company" />,
@@ -209,13 +230,25 @@ export const router = createBrowserRouter([
           { path: '/company/join-requests', element: <W><JoinRequestsPage /></W> },
           { path: '/company/documents', element: <W><CompanyDocumentsPage /></W> },
           { path: '/company/clinical', element: <W><ClinicalWorkspacePage /></W> },
+          { path: '/clinic', element: <W><ClinicDashboardPage /></W> },
+          { path: '/clinic/calendar', element: <W><ClinicCalendarPage /></W> },
+          { path: '/clinic/appointments', element: <W><ClinicAppointmentsPage /></W> },
+          { path: '/clinic/patients', element: <W><ClinicPatientsPage /></W> },
+          { path: '/clinic/medical-records', element: <Navigate to="/clinic/patients" replace /> },
+          { path: '/clinic/patients/:patientId', element: <W><ClinicPatientCardPage /></W> },
+          { path: '/clinic/visits/:visitId', element: <W><ClinicVisitPage /></W> },
+          { path: '/clinic/payments', element: <W><ClinicPaymentsPage /></W> },
+          { path: '/clinic/documents', element: <W><ClinicDocumentsPage /></W> },
+          { path: '/clinic/analytics', element: <W><ClinicAnalyticsPage /></W> },
+          { path: '/clinic/kpi', element: <W><ClinicAnalyticsPage /></W> },
+          { path: '/clinic/settings', element: <W><ClinicSettingsPage /></W> },
           {
             element: <SuperAdminRoute />,
             children: [
               { path: '/company/accounting', element: <W><AccountingPage /></W> },
             ],
           },
-          { path: '/company/analytics', element: <Navigate to="/company" replace /> },
+          { path: '/company/analytics', element: <Navigate to="/clinic/analytics" replace /> },
           { path: '/company/hr', element: <W><HRWorkspacePage /></W> },
           { path: '/company/hr/vacancies', element: <W><HRWorkspacePage /></W> },
           { path: '/company/hr/candidates', element: <W><HRWorkspacePage /></W> },
@@ -331,7 +364,7 @@ export const router = createBrowserRouter([
       { path: '/company/reports', element: <Navigate to="/company/analytics" replace /> },
       { path: '/company/policies', element: <Navigate to="/company/documents" replace /> },
       { path: '/company/hr/schedules', element: <Navigate to="/company/hr" replace /> },
-      { path: '/company/support', element: <Navigate to="/company" replace /> },
+      { path: '/company/support', element: <Navigate to="/support" replace /> },
       { path: '/company/integrations', element: <Navigate to="/company" replace /> },
       { path: '/company/system-logs', element: <Navigate to="/company" replace /> },
       { path: '/company/role-permissions', element: <Navigate to="/company/roles" replace /> },

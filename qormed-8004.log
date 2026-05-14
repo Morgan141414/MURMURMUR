@@ -1,0 +1,72 @@
+INFO:     Started server process [1045164]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:48100 - "GET /api/v1/auth/health HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33076 - "GET / HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33076 - "GET /assets/index-CrrqKEjc.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33090 - "GET /assets/index-CCbQKwLa.css HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33076 - "GET /favicon.svg HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33076 - "GET /assets/LoginPage-Xcrq_TGn.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33090 - "GET /assets/auth-B-ThjZVm.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33106 - "GET /assets/eye-off-CDcy4n23.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33130 - "GET /assets/arrow-right-Cs4qs1wL.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33100 - "GET /assets/shield-check-DUcByEHp.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33122 - "GET /assets/eye-BaIVv48S.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33076 - "GET /assets/credit-card-CmZAf9EZ.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33090 - "GET /assets/chart-column-DgbT8fHg.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:33090 - "GET /api/v1/auth/health HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46538 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46538 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46538 - "GET /api/v1/orgs HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46538 - "GET /assets/inter-latin-wght-normal-Dx4kXJAl.woff2 HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46538 - "GET /assets/DashboardPage-DveCgr-c.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /assets/crown-10BehCak.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46540 - "GET /assets/rocket-D1scoCt6.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46568 - "GET /assets/EmptyState-CyGMLmu6.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46556 - "GET /assets/paperclip-et711UJO.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46578 - "GET /assets/PageHeader-Zqy1PRmx.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /assets/star-CiUHAty3.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /assets/inter-cyrillic-wght-normal-DqGufNeO.woff2 HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46558 - "GET /api/v1/orgs/registration-profiles HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46578 - "GET /api/v1/orgs HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46578 - "GET /api/v1/clinics HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46578 - "GET /api/v1/clinics/1/employees HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46578 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:46578 - "GET /assets/activity-D1-un72q.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /assets/ClinicSettingsPage-CpJwpRxh.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46556 - "GET /assets/download-BVsAnncQ.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46540 - "GET /assets/badge-check-BpH_g_7g.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46568 - "GET /assets/user-round-DYDgEFZe.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46558 - "GET /assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2 HTTP/1.1" 200 OK
+INFO:     100.119.8.7:39218 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:39222 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:36160 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:36172 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:36320 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:36336 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:33572 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:33588 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:43794 - "GET /api/v1/orgs/1/chat/threads HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:43800 - "GET /api/v1/notifications/feed?limit=50 HTTP/1.1" 404 Not Found
+INFO:     100.119.8.7:41610 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:41206 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:52104 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:45566 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:51888 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:36618 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /login HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46430 - "GET /assets/index-CCbQKwLa.css HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /assets/index-CrrqKEjc.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46430 - "GET /assets/auth-B-ThjZVm.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46434 - "GET /assets/shield-check-DUcByEHp.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /assets/LoginPage-Xcrq_TGn.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /assets/eye-off-CDcy4n23.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46434 - "GET /assets/eye-BaIVv48S.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46430 - "GET /assets/arrow-right-Cs4qs1wL.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46430 - "GET /assets/credit-card-CmZAf9EZ.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /assets/chart-column-DgbT8fHg.js HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /api/v1/auth/health HTTP/1.1" 200 OK
+INFO:     100.119.8.7:46424 - "GET /favicon.svg HTTP/1.1" 200 OK

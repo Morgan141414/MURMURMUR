@@ -950,7 +950,8 @@
       "hr": "Кадры",
       "finance": "Финансы",
       "workspace": "Рабочее пространство",
-      "clinic": "Клиника"
+      "clinic": "Клиника",
+      "patientCabinet": "Пациентский кабинет"
     },
     "platformOverview": "Обзор платформы",
     "companies": "Компании",
@@ -1000,12 +1001,20 @@
     "accounting": "Бухгалтерия",
     "clinical": "Календарь и приёмы",
     "clinicWorkspace": "Клинический кабинет",
+    "clinicCommandCenter": "Рабочий стол",
     "calendar": "Календарь",
     "appointments": "Приёмы",
     "patients": "Пациенты",
     "medicalRecords": "Медкарта",
     "roomsServices": "Кабинеты и услуги",
-    "clinicalDocuments": "Документолог"
+    "clinicalDocuments": "Документолог",
+    "clinicPayments": "Финансы",
+    "clinicAnalytics": "Аналитика",
+    "clinicSettings": "Справочники",
+    "myKpi": "Мой KPI",
+    "myAppointments": "Мои записи",
+    "myMedicalRecord": "Моя медкарта",
+    "myDocuments": "Мои документы"
   },
   "accounting": {
     "title": "Бухгалтерия",

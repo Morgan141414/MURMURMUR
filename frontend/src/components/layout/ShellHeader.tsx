@@ -1,6 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { Bell, Inbox, Menu, Search, ChevronRight, ScrollText } from 'lucide-react'
+import {
+  Bell,
+  CalendarPlus,
+  ChevronRight,
+  FilePlus2,
+  Inbox,
+  LifeBuoy,
+  Menu,
+  Plus,
+  Search,
+  ScrollText,
+  UserPlus,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -14,6 +26,7 @@ import { AvatarImage } from '@/components/shared/AvatarImage'
 import { getNotificationFeed, markAllNotificationsRead, markNotificationRead } from '@/api/notifications'
 import { acceptDepartmentInvite, rejectDepartmentInvite, approveDepartmentInviteRequest, rejectDepartmentInviteRequest } from '@/api/projects'
 import { respondHRDocumentShareRequest, respondHRDocumentFolderShareRequest } from '@/api/hr'
+import { useGlobalSearch } from '@/hooks/useGlobalSearch'
 
 /* ── Shell meta for indicator ── */
 const SHELL_META: Record<ShellType, { labelKey: string; accent: string; bg: string; dot: string }> = {
@@ -44,6 +57,57 @@ interface ShellHeaderProps {
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000
 const NOTIFICATION_MIN_GAP_MS = 10_000
 
+const QUICK_ACTIONS = [
+  { label: 'Новая запись', to: '/clinic/calendar', icon: CalendarPlus },
+  { label: 'Новый пациент', to: '/clinic/patients', icon: UserPlus },
+  { label: 'Документ', to: '/clinic/documents', icon: FilePlus2 },
+]
+
+const CLINIC_SEARCH_RESULTS = [
+  {
+    id: 'patient:p-1042',
+    group: 'Пациенты',
+    title: 'Айгерим Нурланова',
+    meta: 'ИИН 890512450012 · +7 701 245 18 90 · прием сегодня 10:30',
+    to: '/clinic/patients/p-1042',
+  },
+  {
+    id: 'patient:p-1188',
+    group: 'Пациенты',
+    title: 'Марат Сейдахмет',
+    meta: 'ИИН 760301300442 · +7 775 010 44 20 · долг 18 000 ₸',
+    to: '/clinic/patients/p-1188',
+  },
+  {
+    id: 'patient:p-1220',
+    group: 'Пациенты',
+    title: 'Динара Касымова',
+    meta: 'ИИН 920812600333 · +7 700 888 55 11 · первичная карта',
+    to: '/clinic/patients/p-1220',
+  },
+  {
+    id: 'appointment:1030',
+    group: 'Записи',
+    title: '10:30 · Повторный прием',
+    meta: 'Айгерим Нурланова · терапевт · кабинет 201 · на приеме',
+    to: '/clinic/calendar',
+  },
+  {
+    id: 'appointment:1100',
+    group: 'Записи',
+    title: '11:00 · Кардиология',
+    meta: 'Марат Сейдахмет · аллергия · требуется подтверждение',
+    to: '/clinic/appointments',
+  },
+  {
+    id: 'document:therapy-template',
+    group: 'Документы',
+    title: 'Первичный прием терапевта',
+    meta: 'Шаблон · переменные пациента, врача и приема · готов к выпуску',
+    to: '/clinic/documents',
+  },
+]
+
 export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
   const { t } = useTranslation()
   const fullName = useAuthStore((s) => s.fullName)
@@ -72,7 +136,13 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
     projects: t('nav.departments'),
     approvals: t('nav.approvals'),
     documents: t('nav.documents'),
-    analytics: t('nav.reports'),
+    clinical: 'Клинический центр',
+    clinic: 'Клинический центр',
+    calendar: t('nav.calendar'),
+    patients: t('nav.patients'),
+    visits: t('nav.visitWorkspace', 'Прием врача'),
+    payments: t('nav.clinicPayments', 'Касса'),
+    analytics: location.pathname.startsWith('/clinic') ? t('nav.clinicAnalytics', 'Аналитика') : t('nav.reports'),
     settings: t('nav.settings'),
     platform: t('shell.platform'),
     companies: t('nav.companies'),
@@ -83,22 +153,22 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
     members: t('nav.members'),
     support: t('nav.support'),
     profile: t('nav.profile'),
-    search: t('nav.search', 'Search'),
-    explore: t('search.eyebrow', 'Explore'),
+    search: t('nav.search', 'Поиск'),
+    explore: t('search.eyebrow', 'Обзор'),
   }
 
   let breadcrumbSegments: string[] = [contextName]
   let title = ''
 
   if (location.pathname.startsWith('/explore/companies/')) {
-    breadcrumbSegments = [t('search.title', 'Search')]
+    breadcrumbSegments = [t('search.title', 'Поиск')]
     title = t('search.openCompany', 'Company')
   } else if (location.pathname.startsWith('/explore/users/') || location.pathname.startsWith('/users/')) {
-    breadcrumbSegments = [t('search.title', 'Search')]
+    breadcrumbSegments = [t('search.title', 'Поиск')]
     title = t('search.openProfile', 'Profile')
   } else if (location.pathname === '/search') {
     breadcrumbSegments = []
-    title = t('search.title', 'Search')
+    title = t('search.title', 'Поиск')
   } else if (pathParts.length > 1) {
     const rawPageName = pathParts[pathParts.length - 1]
     const pageName = segmentLabels[rawPageName] ??
@@ -150,7 +220,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
         const latest = response.data.items.find((item) => !item.is_read && !String(item.type || '').startsWith('messenger_')) || response.data.items.find((item) => !item.is_read)
         if (latest) {
           toast.info(latest.title, {
-            description: latest.body || 'New notification received',
+              description: latest.body || 'Получено новое уведомление',
           })
         }
       }
@@ -230,7 +300,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
 
   async function handleDepartmentInviteApprovalAction(notificationId: string, inviteId: string, action: 'approve' | 'reject') {
     if (!activeOrgId) {
-      toast.error('Select a company first')
+      toast.error('Сначала выберите компанию')
       return
     }
     try {
@@ -242,9 +312,9 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
       await markNotificationRead(notificationId)
       await loadFeed(false, true)
       window.dispatchEvent(new CustomEvent('notifications:refresh'))
-      toast.success(action === 'approve' ? 'Request approved' : 'Request rejected')
+      toast.success(action === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена')
     } catch {
-      toast.error('Failed to process invite request')
+      toast.error('Не удалось обработать заявку')
     }
   }
 
@@ -273,7 +343,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
     const orgId = (typeof item.org_id === 'string' && item.org_id) ? item.org_id : activeOrgId
 
     if (!requestId || !orgId) {
-      toast.error('Missing request details')
+      toast.error('Не хватает данных запроса')
       return
     }
 
@@ -283,24 +353,24 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
       } else if (item.type === 'hr_folder_share_request') {
         await respondHRDocumentFolderShareRequest(orgId, requestId, { action })
       } else {
-        toast.error('Unknown request type')
+        toast.error('Неизвестный тип запроса')
         return
       }
 
       await markNotificationRead(item.id)
       await loadFeed(false, true)
       window.dispatchEvent(new CustomEvent('notifications:refresh'))
-      toast.success(action === 'accept' ? 'Access accepted' : 'Request rejected')
+      toast.success(action === 'accept' ? 'Доступ предоставлен' : 'Запрос отклонен')
     } catch (error: unknown) {
       const status = (error as { response?: { status?: number } })?.response?.status
       if (status === 404) {
         await markNotificationRead(item.id)
         await loadFeed(false, true)
         window.dispatchEvent(new CustomEvent('notifications:refresh'))
-        toast.error('Request is no longer available')
+        toast.error('Запрос больше недоступен')
         return
       }
-      toast.error('Failed to process access request')
+      toast.error('Не удалось обработать запрос доступа')
     }
   }
 
@@ -315,7 +385,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
         {onMobileMenuToggle && (
           <button
             onClick={onMobileMenuToggle}
-            className="md:hidden flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-muted hover:text-foreground md:hidden"
             aria-label={t('a11y.openMenu')}
           >
             <Menu className="h-5 w-5" />
@@ -323,7 +393,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
         )}
 
         {/* Shell indicator pill */}
-        <div className={cn('hidden sm:flex h-6 items-center gap-1.5 rounded-md px-2', meta.bg)}>
+        <div className={cn('hidden h-6 items-center gap-1.5 rounded-md px-2 sm:flex', meta.bg)}>
           <div className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} />
           <span className={cn('text-[10px] font-semibold uppercase tracking-wider', meta.accent)}>
             {shellLabel}
@@ -355,22 +425,35 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
 
         {/* Role badge */}
         {role && (
-          <span className="hidden lg:inline-flex items-center rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
+          <span className="hidden items-center rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-secondary lg:inline-flex">
             {ROLE_LABELS[role]}
           </span>
         )}
       </div>
 
+      <GlobalSearchBox />
+
       {/* ═══ Right side ═══ */}
       <div className="flex items-center gap-1 md:gap-1.5">
+        <QuickActionsMenu />
+
+        <button
+          onClick={() => navigate('/support')}
+          className="hidden h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-text-secondary transition-colors hover:bg-muted hover:text-foreground hover:border-border-hover md:flex"
+          aria-label="Поддержка"
+          title="Поддержка с контекстом текущего экрана"
+        >
+          <LifeBuoy className="h-3.5 w-3.5" />
+        </button>
+
         {/* Audit logs */}
         <button
           onClick={() => navigate(currentShell === 'platform' ? '/platform/audit-log' : '/company/audit-log')}
-          className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface-hover/50 px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground hover:border-border-hover"
-          aria-label={t('nav.auditLog', 'Audit Log')}
+          className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-muted hover:text-foreground hover:border-border-hover md:flex"
+          aria-label={t('nav.auditLog', 'Журнал аудита')}
         >
           <ScrollText className="h-3.5 w-3.5" />
-          <span>{t('nav.auditLog', 'Audit Log')}</span>
+          <span>{t('nav.auditLog', 'Журнал аудита')}</span>
         </button>
 
         {/* Language switcher */}
@@ -384,7 +467,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
           <button
             ref={bellRef}
             onClick={() => setShowNotifications((v) => !v)}
-            className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+            className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-muted hover:text-foreground"
             title={t('header.notificationsTooltip')}
             aria-label={t('header.notificationsTooltip', 'Notifications')}
             aria-expanded={showNotifications}
@@ -400,7 +483,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
           {showNotifications && (
             <div
               ref={dropdownRef}
-              className="notification-dropdown absolute right-0 top-full z-50 mt-2 w-[340px] rounded-xl border border-border bg-surface-1 shadow-xl"
+              className="notification-dropdown absolute right-0 top-full z-50 mt-2 w-[340px] rounded-lg border border-border bg-card shadow-md"
               role="dialog"
               aria-label={t('a11y.notifications')}
             >
@@ -418,7 +501,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
                       Прочитать всё
                     </button>
                   ) : null}
-                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-text-secondary">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-text-secondary">
                     {generalUnreadCount}
                   </span>
                 </div>
@@ -435,7 +518,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
                     {t('header.noNotifications')}
                   </p>
                   <p className="max-w-[240px] text-center text-[12px] leading-5 text-text-tertiary">
-                    Important events and updates will appear here.
+                    Здесь появятся важные события, заявки и системные уведомления.
                   </p>
                 </div>
               ) : (
@@ -478,7 +561,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
                                 void handleDepartmentInviteApprovalAction(item.id, inviteId, 'approve')
                               }}
                             >
-                              Approve
+                              Одобрить
                             </button>
                             <button
                               type="button"
@@ -488,7 +571,7 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
                                 void handleDepartmentInviteApprovalAction(item.id, inviteId, 'reject')
                               }}
                             >
-                              Reject
+                              Отклонить
                             </button>
                           </div>
                         ) : null}
@@ -573,4 +656,171 @@ export function ShellHeader({ onMobileMenuToggle }: ShellHeaderProps) {
       </div>
     </header>
   )
+
+  function GlobalSearchBox() {
+    const [query, setQuery] = useState('')
+    const [focused, setFocused] = useState(false)
+    const { results: workspaceResults, recent } = useGlobalSearch(query)
+    const normalizedQuery = query.trim().toLowerCase()
+
+    const clinicalResults = CLINIC_SEARCH_RESULTS.filter((item) =>
+      `${item.group} ${item.title} ${item.meta}`.toLowerCase().includes(normalizedQuery),
+    )
+
+    const groupedResults = [
+      ...clinicalResults.map((item) => ({
+        ...item,
+        label: item.title,
+        description: item.meta,
+      })),
+      ...workspaceResults.slice(0, 6).map((item) => ({
+        id: item.id,
+        group: item.group === 'companies' ? 'Клиники/компании' : item.group === 'actions' ? 'Действия' : 'Разделы',
+        title: item.label,
+        meta: item.description ?? '',
+        label: item.label,
+        description: item.description,
+        to: item.to,
+      })),
+    ].slice(0, 8)
+
+    const defaultResults = [
+      ...CLINIC_SEARCH_RESULTS.slice(0, 4),
+      ...recent.slice(0, 3).map((item) => ({
+        id: item.id,
+        group: 'Разделы',
+        title: item.label,
+        meta: item.description ?? '',
+        to: item.to,
+      })),
+    ]
+
+    const visibleResults = normalizedQuery ? groupedResults : defaultResults
+    const showResults = focused
+
+    function handleSearch() {
+      setFocused(true)
+    }
+
+    function openResult(to?: string) {
+      setFocused(false)
+      setQuery('')
+      navigate(to && to !== '#switch-company' ? to : '/search')
+    }
+
+    return (
+      <div className="relative mx-3 hidden min-w-[260px] max-w-[520px] flex-1 lg:block">
+        <div className="flex h-9 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-text-secondary transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
+          <Search className="h-4 w-4 shrink-0" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={handleSearch}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                if (visibleResults[0]) openResult(visibleResults[0].to)
+                else navigate('/search')
+              }
+              if (event.key === 'Escape') setFocused(false)
+            }}
+            placeholder="Пациент, ИИН, телефон, запись, документ..."
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-text-tertiary"
+            aria-label="Глобальный поиск"
+          />
+          <kbd className="hidden items-center gap-0.5 rounded border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary xl:inline-flex">
+            ⌘K
+          </kbd>
+        </div>
+
+        {showResults ? (
+          <div
+            className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-border bg-card shadow-md"
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                Быстрый поиск
+              </span>
+              <button
+                type="button"
+                onClick={() => openResult('/search')}
+                className="text-[11px] font-medium text-primary hover:text-primary-hover"
+              >
+                Расширенный поиск
+              </button>
+            </div>
+            {visibleResults.length > 0 ? (
+              <div className="max-h-[340px] overflow-y-auto p-1.5">
+                {visibleResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openResult(item.to)}
+                    className="flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-surface-hover"
+                  >
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Search className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[13px] font-medium text-foreground">{item.title}</span>
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-text-secondary">{item.group}</span>
+                      </span>
+                      {item.meta ? <span className="mt-0.5 block truncate text-[11px] text-text-tertiary">{item.meta}</span> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-6 text-center">
+                <p className="text-[13px] font-medium text-foreground">Ничего не найдено</p>
+                <p className="mt-1 text-[12px] text-text-tertiary">Проверьте ИИН, телефон, фамилию или номер записи.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  function QuickActionsMenu() {
+    const [open, setOpen] = useState(false)
+
+    function go(to: string) {
+      setOpen(false)
+      navigate(to)
+    }
+
+    return (
+      <div className="relative hidden md:block">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          aria-label="Быстрые действия"
+          aria-expanded={open}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden xl:inline">Создать</span>
+        </button>
+
+        {open ? (
+          <div className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-lg border border-border bg-card p-1.5 shadow-md">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                onClick={() => go(action.to)}
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-surface-hover"
+              >
+                <action.icon className="h-4 w-4 text-primary" />
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 }
