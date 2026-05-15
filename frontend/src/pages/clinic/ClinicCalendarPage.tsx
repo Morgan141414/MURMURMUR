@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import {
   ChevronLeft,
@@ -74,15 +74,69 @@ interface Appointment {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const HOUR_HEIGHT = 64
+const HOUR_HEIGHT = 72
 const DAY_START = 8
-const DAY_END = 18
+const DAY_END = 22
 const HOURS = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function useNow() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(id)
+  }, [])
+  return now
+}
+
+function computeColumns(events: Appointment[]): Map<string, { col: number; total: number }> {
+  const sorted = [...events].sort(
+    (a, b) => a.startHour * 60 + a.startMin - (b.startHour * 60 + b.startMin),
+  )
+  const colEnds: number[] = [] // end-time (minutes) of last event in each column
+  const assigned = new Map<string, number>()
+
+  for (const ev of sorted) {
+    const start = ev.startHour * 60 + ev.startMin
+    const end = ev.endHour * 60 + ev.endMin
+    let placed = false
+    for (let i = 0; i < colEnds.length; i++) {
+      if (colEnds[i] <= start) {
+        colEnds[i] = end
+        assigned.set(ev.id, i)
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      assigned.set(ev.id, colEnds.length)
+      colEnds.push(end)
+    }
+  }
+
+  const result = new Map<string, { col: number; total: number }>()
+  for (const ev of sorted) {
+    const col = assigned.get(ev.id)!
+    const evStart = ev.startHour * 60 + ev.startMin
+    const evEnd = ev.endHour * 60 + ev.endMin
+    let maxCol = col
+    for (const other of sorted) {
+      const oStart = other.startHour * 60 + other.startMin
+      const oEnd = other.endHour * 60 + other.endMin
+      if (oStart < evEnd && oEnd > evStart) {
+        const oc = assigned.get(other.id)!
+        if (oc > maxCol) maxCol = oc
+      }
+    }
+    result.set(ev.id, { col, total: maxCol + 1 })
+  }
+  return result
 }
 
 // ─── Backend → display transform ──────────────────────────────────────────────
@@ -183,9 +237,7 @@ function durationPx(sh: number, sm: number, eh: number, em: number) {
 }
 
 function fmtTime(h: number, m: number) {
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const hh = h > 12 ? h - 12 : h === 0 ? 12 : h
-  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function dateToStr(year: number, month: number, day: number) {
@@ -228,11 +280,11 @@ const STATUS_CLS: Record<AppointmentStatus, string> = {
 }
 
 const EVENT_BG: Record<string, string> = {
-  purple: 'bg-violet-50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/20',
-  blue:   'bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20',
-  green:  'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20',
-  amber:  'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20',
-  gray:   'bg-muted/40 border-border',
+  purple: 'bg-violet-500/10 border-violet-400/30 dark:border-violet-500/20 border-l-violet-500',
+  blue:   'bg-blue-500/10 border-blue-400/30 dark:border-blue-500/20 border-l-blue-500',
+  green:  'bg-emerald-500/10 border-emerald-400/30 dark:border-emerald-500/20 border-l-emerald-500',
+  amber:  'bg-amber-500/10 border-amber-400/30 dark:border-amber-500/20 border-l-amber-400',
+  gray:   'bg-muted/20 border-border/50 border-l-muted-foreground/30',
 }
 
 const EVENT_TEXT: Record<string, string> = {
@@ -241,6 +293,18 @@ const EVENT_TEXT: Record<string, string> = {
   green:  'text-emerald-700 dark:text-emerald-300',
   amber:  'text-amber-700 dark:text-amber-300',
   gray:   'text-muted-foreground',
+}
+
+const STATUS_DOT: Record<AppointmentStatus, string> = {
+  created:              'bg-amber-400',
+  waiting_confirmation: 'bg-amber-400',
+  confirmed:            'bg-emerald-500',
+  arrived:              'bg-blue-500',
+  started:              'bg-blue-400',
+  completed:            'bg-emerald-600',
+  canceled:             'bg-red-500',
+  no_show:              'bg-red-400',
+  rescheduled:          'bg-slate-400',
 }
 
 // ─── Mini Calendar ────────────────────────────────────────────────────────────
@@ -476,10 +540,32 @@ function NewApptModal({
   const [patientId, setPatientId] = useState<string>(patients[0] ? String(patients[0].id) : '')
   const [doctorId, setDoctorId] = useState<string>(lockedDoctorId ? String(lockedDoctorId) : '')
   const [serviceId, setServiceId] = useState<string>('')
+  const [durationMin, setDurationMin] = useState(30)
   const [startH, setStartH] = useState(prefillHour ?? 9)
   const [startM, setStartM] = useState(0)
-  const [endH, setEndH] = useState((prefillHour ?? 9) + 1)
-  const [endM, setEndM] = useState(0)
+  const [endH, setEndH] = useState(prefillHour ?? 9)
+  const [endM, setEndM] = useState(30)
+
+  function applyStartH(h: number) {
+    setStartH(h)
+    const total = h * 60 + startM + durationMin
+    setEndH(Math.floor(total / 60) % 24)
+    setEndM(total % 60)
+  }
+  function applyStartM(m: number) {
+    setStartM(m)
+    const total = startH * 60 + m + durationMin
+    setEndH(Math.floor(total / 60) % 24)
+    setEndM(total % 60)
+  }
+  function applyEndH(h: number) {
+    setEndH(h)
+    setDurationMin(Math.max(0, h * 60 + endM - (startH * 60 + startM)))
+  }
+  function applyEndM(m: number) {
+    setEndM(m)
+    setDurationMin(Math.max(0, endH * 60 + m - (startH * 60 + startM)))
+  }
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -563,17 +649,17 @@ function NewApptModal({
             <label className="block space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Начало</span>
               <div className="flex gap-1">
-                <input type="number" min={0} max={23} value={startH} onChange={(e) => setStartH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
+                <input type="number" min={0} max={23} value={startH} onChange={(e) => applyStartH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
                 <span className="py-2 text-muted-foreground text-[13px]">:</span>
-                <input type="number" min={0} max={59} step={15} value={startM} onChange={(e) => setStartM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
+                <input type="number" min={0} max={59} step={15} value={startM} onChange={(e) => applyStartM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
               </div>
             </label>
             <label className="block space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Конец</span>
               <div className="flex gap-1">
-                <input type="number" min={0} max={23} value={endH} onChange={(e) => setEndH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
+                <input type="number" min={0} max={23} value={endH} onChange={(e) => applyEndH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
                 <span className="py-2 text-muted-foreground text-[13px]">:</span>
-                <input type="number" min={0} max={59} step={15} value={endM} onChange={(e) => setEndM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
+                <input type="number" min={0} max={59} step={15} value={endM} onChange={(e) => applyEndM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
               </div>
             </label>
           </div>
@@ -600,15 +686,21 @@ function NewApptModal({
 function DayTimeline({
   appointments,
   selectedId,
+  isToday,
   onSelect,
   onClickFreeSlot,
 }: {
   appointments: Appointment[]
   selectedId: string | null
+  isToday: boolean
   onSelect: (id: string) => void
   onClickFreeSlot: (hour: number) => void
 }) {
   const totalH = (DAY_END - DAY_START) * HOUR_HEIGHT
+  const now = useNow()
+  const nowY = timeToY(now.getHours(), now.getMinutes())
+  const showNow = isToday && nowY >= 0 && nowY <= totalH
+
   return (
     <div className="flex">
       {/* Time labels */}
@@ -622,55 +714,89 @@ function DayTimeline({
 
       {/* Grid */}
       <div className="flex-1 relative border-l border-border" style={{ height: totalH }}>
+        {/* Hour lines */}
         {HOURS.map((h) => (
           <div key={h} className="absolute inset-x-0 border-t border-border/40" style={{ top: (h - DAY_START) * HOUR_HEIGHT }} />
         ))}
+        {/* Half-hour dashed lines */}
         {HOURS.map((h) => (
           <div key={`${h}h`} className="absolute inset-x-0 border-t border-border/20 border-dashed" style={{ top: (h - DAY_START) * HOUR_HEIGHT + HOUR_HEIGHT / 2 }} />
         ))}
 
-        {/* Click to create */}
+        {/* Click-to-create slots */}
         {HOURS.map((h) => (
           <div
             key={`slot-${h}`}
-            className="absolute inset-x-1 cursor-pointer hover:bg-accent/25 rounded transition-colors z-0"
+            className="group absolute inset-x-1 cursor-pointer hover:bg-accent/20 rounded transition-colors z-0 flex items-center justify-center"
             style={{ top: (h - DAY_START) * HOUR_HEIGHT + 1, height: HOUR_HEIGHT - 2 }}
             onClick={() => onClickFreeSlot(h)}
-          />
+          >
+            <Plus className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors" />
+          </div>
         ))}
 
+        {/* Current-time indicator */}
+        {showNow && (
+          <div className="absolute inset-x-0 flex items-center z-20 pointer-events-none" style={{ top: nowY }}>
+            <div className="h-2.5 w-2.5 rounded-full bg-red-500 -ml-[5px] shrink-0 shadow-sm" />
+            <div className="flex-1 border-t-2 border-red-500/70" />
+          </div>
+        )}
+
         {/* Events */}
-        {appointments.map((a) => {
-          const top = timeToY(a.startHour, a.startMin)
-          const height = Math.max(durationPx(a.startHour, a.startMin, a.endHour, a.endMin), 28)
-          const isSel = a.id === selectedId
-          return (
-            <button
-              key={a.id}
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onSelect(a.id) }}
-              className={cn(
-                'absolute left-2 right-2 rounded-lg border px-2.5 py-1.5 text-left transition-all overflow-hidden z-10',
-                EVENT_BG[a.color],
-                isSel && 'ring-2 ring-foreground/20 shadow-md scale-[1.01]',
-              )}
-              style={{ top, height }}
-            >
-              <div className="flex items-center gap-1">
-                <p className={cn('text-[12px] font-semibold leading-tight truncate', EVENT_TEXT[a.color])}>{a.title}</p>
-                {a.source === 'crm' && <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase bg-violet-500/20 text-violet-600">CRM</span>}
-              </div>
-              <p className={cn('text-[11px] leading-tight truncate opacity-75', EVENT_TEXT[a.color])}>
-                {fmtTime(a.startHour, a.startMin)} · {a.service}
-              </p>
-              {height > 44 && (
-                <span className={cn('mt-1 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium', STATUS_CLS[a.status])}>
-                  {STATUS_LABEL[a.status]}
-                </span>
-              )}
-            </button>
-          )
-        })}
+        {(() => {
+          const colMap = computeColumns(appointments)
+          return appointments.map((a) => {
+            const top = timeToY(a.startHour, a.startMin)
+            const height = Math.max(durationPx(a.startHour, a.startMin, a.endHour, a.endMin), 36)
+            const isSel = a.id === selectedId
+            const { col, total } = colMap.get(a.id) ?? { col: 0, total: 1 }
+            const GAP = 4
+            const colLeft = `calc(8px + ${col} * ((100% - 16px - ${GAP * (total - 1)}px) / ${total} + ${GAP}px))`
+            const colWidth = `calc((100% - 16px - ${GAP * (total - 1)}px) / ${total})`
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSelect(a.id) }}
+                className={cn(
+                  'absolute rounded-lg border border-l-[3px] text-left transition-all overflow-hidden z-10 backdrop-blur-sm',
+                  height < 50 ? 'px-2 py-0 flex items-center' : 'px-2.5 py-1.5',
+                  EVENT_BG[a.color],
+                  isSel ? 'ring-2 ring-white/20 shadow-lg brightness-110' : 'hover:brightness-110',
+                )}
+                style={{ top, height, left: colLeft, width: colWidth }}
+              >
+                {height < 50 ? (
+                  /* Compact single-line layout */
+                  <div className="flex items-center gap-1.5 min-w-0 w-full">
+                    <p className={cn('text-[11px] font-semibold truncate flex-1 leading-none', EVENT_TEXT[a.color])}>{a.title}</p>
+                    <p className={cn('text-[10px] opacity-60 shrink-0 whitespace-nowrap leading-none', EVENT_TEXT[a.color])}>
+                      {fmtTime(a.startHour, a.startMin)}–{fmtTime(a.endHour, a.endMin)}
+                    </p>
+                    {a.source === 'crm' && <span className="rounded px-1 text-[8px] font-bold uppercase bg-violet-500/20 text-violet-400 shrink-0">CRM</span>}
+                    <span className={cn('h-2 w-2 rounded-full shrink-0', STATUS_DOT[a.status])} />
+                  </div>
+                ) : (
+                  /* Normal two-line layout */
+                  <>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <p className={cn('text-[12px] font-semibold leading-tight truncate flex-1', EVENT_TEXT[a.color])}>{a.title}</p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {a.source === 'crm' && <span className="rounded px-1 text-[8px] font-bold uppercase bg-violet-500/20 text-violet-400">CRM</span>}
+                        <span className={cn('h-2 w-2 rounded-full shrink-0', STATUS_DOT[a.status])} />
+                      </div>
+                    </div>
+                    <p className={cn('text-[11px] leading-tight truncate opacity-70 mt-0.5', EVENT_TEXT[a.color])}>
+                      {fmtTime(a.startHour, a.startMin)}–{fmtTime(a.endHour, a.endMin)}
+                      {a.service ? ` · ${a.service}` : ''}
+                    </p>
+                  </>
+                )}
+              </button>
+            )
+          })
+        })()}
 
         {appointments.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -703,11 +829,14 @@ function WeekTimeline({
   onSelect: (id: string) => void
 }) {
   const today = todayStr()
+  const now = useNow()
   const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
   const totalH = (DAY_END - DAY_START) * HOUR_HEIGHT
+  const nowY = timeToY(now.getHours(), now.getMinutes())
 
   return (
     <div className="flex">
+      {/* Time axis */}
       <div className="w-14 shrink-0 relative pt-10" style={{ height: totalH + 40 }}>
         {HOURS.map((h) => (
           <div key={h} className="absolute w-full flex justify-end pr-2" style={{ top: 40 + (h - DAY_START) * HOUR_HEIGHT - 8 }}>
@@ -715,14 +844,17 @@ function WeekTimeline({
           </div>
         ))}
       </div>
+
       <div className="flex flex-1 border-l border-border">
         {weekDates.map((date, idx) => {
           const dayA = appointments.filter((a) => a.date === date)
           const dayNum = new Date(date + 'T00:00:00').getDate()
           const isSel = date === selectedDate
-          const isToday = date === today
+          const isDayToday = date === today
+          const showNow = isDayToday && nowY >= 0 && nowY <= totalH
           return (
-            <div key={date} className="flex-1 min-w-0 border-r border-border/40 flex flex-col">
+            <div key={date} className={cn('flex-1 min-w-0 border-r border-border/40 flex flex-col', isDayToday && 'bg-primary/[0.02]')}>
+              {/* Day header */}
               <button
                 onClick={() => onSelectDate(date)}
                 className={cn(
@@ -730,38 +862,66 @@ function WeekTimeline({
                   isSel && 'bg-accent/50',
                 )}
               >
-                <span className="text-[10px] text-muted-foreground">{DAYS[idx]}</span>
+                <span className={cn('text-[10px]', isDayToday ? 'text-primary font-semibold' : 'text-muted-foreground')}>{DAYS[idx]}</span>
                 <span className={cn(
                   'flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold mt-0.5',
-                  isToday && !isSel && 'border border-border text-foreground',
+                  isDayToday && !isSel && 'bg-primary/10 text-primary',
                   isSel && 'bg-foreground text-background',
-                  !isToday && !isSel && 'text-foreground',
+                  !isDayToday && !isSel && 'text-foreground',
                 )}>{dayNum}</span>
               </button>
+
+              {/* Day grid */}
               <div className="relative" style={{ height: totalH }}>
                 {HOURS.map((h) => (
                   <div key={h} className="absolute inset-x-0 border-t border-border/30" style={{ top: (h - DAY_START) * HOUR_HEIGHT }} />
                 ))}
-                {dayA.map((a) => {
-                  const top = timeToY(a.startHour, a.startMin)
-                  const height = Math.max(durationPx(a.startHour, a.startMin, a.endHour, a.endMin), 20)
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => onSelect(a.id)}
-                      className={cn(
-                        'absolute inset-x-0.5 rounded px-1 py-0.5 text-left overflow-hidden border',
-                        EVENT_BG[a.color],
-                        a.id === selectedId && 'ring-1 ring-foreground/30',
-                      )}
-                      style={{ top, height }}
-                    >
-                      <p className={cn('text-[10px] font-semibold truncate leading-tight', EVENT_TEXT[a.color])}>{a.title}</p>
-                      <p className={cn('text-[9px] truncate opacity-70', EVENT_TEXT[a.color])}>{fmtTime(a.startHour, a.startMin)}</p>
-                    </button>
-                  )
-                })}
+                {HOURS.map((h) => (
+                  <div key={`${h}h`} className="absolute inset-x-0 border-t border-border/10 border-dashed" style={{ top: (h - DAY_START) * HOUR_HEIGHT + HOUR_HEIGHT / 2 }} />
+                ))}
+
+                {/* Now line */}
+                {showNow && (
+                  <div className="absolute inset-x-0 flex items-center z-20 pointer-events-none" style={{ top: nowY }}>
+                    <div className="h-2 w-2 rounded-full bg-red-500 -ml-[4px] shrink-0" />
+                    <div className="flex-1 border-t-2 border-red-500/60" />
+                  </div>
+                )}
+
+                {(() => {
+                  const colMap = computeColumns(dayA)
+                  return dayA.map((a) => {
+                    const top = timeToY(a.startHour, a.startMin)
+                    const height = Math.max(durationPx(a.startHour, a.startMin, a.endHour, a.endMin), 24)
+                    const { col, total } = colMap.get(a.id) ?? { col: 0, total: 1 }
+                    const GAP = 2
+                    const colLeft = `calc(2px + ${col} * ((100% - 4px - ${GAP * (total - 1)}px) / ${total} + ${GAP}px))`
+                    const colWidth = `calc((100% - 4px - ${GAP * (total - 1)}px) / ${total})`
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => onSelect(a.id)}
+                        className={cn(
+                          'absolute rounded border border-l-[2px] px-1 py-0.5 text-left overflow-hidden transition-all',
+                          EVENT_BG[a.color],
+                          a.id === selectedId ? 'ring-1 ring-white/20 brightness-110' : 'hover:brightness-110',
+                        )}
+                        style={{ top, height, left: colLeft, width: colWidth }}
+                      >
+                        <div className="flex items-center gap-0.5 min-w-0">
+                          <p className={cn('text-[10px] font-semibold truncate flex-1 leading-tight', EVENT_TEXT[a.color])}>{a.title}</p>
+                          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', STATUS_DOT[a.status])} />
+                        </div>
+                        {height >= 32 && (
+                          <p className={cn('text-[9px] truncate opacity-60 leading-tight', EVENT_TEXT[a.color])}>
+                            {fmtTime(a.startHour, a.startMin)}–{fmtTime(a.endHour, a.endMin)}
+                          </p>
+                        )}
+                      </button>
+                    )
+                  })
+                })()}
               </div>
             </div>
           )
@@ -782,6 +942,7 @@ export function ClinicCalendarPage() {
 
   const isManager = activeRole ? MANAGER_ROLES.has(activeRole) : false
 
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [selectedDate, setSelectedDate] = useState(today)
   const [activeTab, setActiveTab] = useState<CalendarTab>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('day')
@@ -855,9 +1016,24 @@ export function ClinicCalendarPage() {
     return Array.from({ length: 7 }, (_, i) => {
       const dd = new Date(d)
       dd.setDate(d.getDate() - dow + i)
-      return dd.toISOString().slice(0, 10)
+      return dateToStr(dd.getFullYear(), dd.getMonth(), dd.getDate())
     })
   }, [selectedDate])
+
+  // Auto-scroll: on day change scroll to current time (today) or first appointment
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const now = new Date()
+    let targetY: number
+    if (selectedDate === today) {
+      targetY = timeToY(now.getHours(), now.getMinutes()) - 120
+    } else {
+      const first = [...dayAppts].sort((a, b) => a.startHour * 60 + a.startMin - (b.startHour * 60 + b.startMin))[0]
+      targetY = first ? timeToY(first.startHour, first.startMin) - 80 : 0
+    }
+    el.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+  }, [selectedDate, today])
 
   const selectedAppt = appointments.find((a) => a.id === selectedId) ?? null
   const datesWithEvents = useMemo(() => new Set(appointments.map((a) => a.date)), [appointments])
@@ -878,8 +1054,11 @@ export function ClinicCalendarPage() {
   async function handleAddAppt(form: NewApptForm) {
     if (!clinicId) throw new Error('No clinic selected')
     const pad = (n: number) => String(n).padStart(2, '0')
-    const starts_at = `${form.date}T${pad(form.startH)}:${pad(form.startM)}:00`
-    const ends_at = `${form.date}T${pad(form.endH)}:${pad(form.endM)}:00`
+    // Parse as local time then convert to UTC (backend stores naive UTC strings)
+    const toUtcStr = (date: string, h: number, m: number) =>
+      new Date(`${date}T${pad(h)}:${pad(m)}:00`).toISOString().slice(0, 19)
+    const starts_at = toUtcStr(form.date, form.startH, form.startM)
+    const ends_at = toUtcStr(form.date, form.endH, form.endM)
     const { data } = await createAppointment(clinicId, {
       patient_profile_id: form.patientProfileId,
       doctor_membership_id: form.doctorMembershipId,
@@ -892,10 +1071,10 @@ export function ClinicCalendarPage() {
     setAppointments((prev) => [...prev, transformAppt(data, patients, employees, services)])
   }
 
-  function navigateDay(delta: number) {
+  function navigate(delta: number) {
     const d = new Date(selectedDate + 'T00:00:00')
-    d.setDate(d.getDate() + delta)
-    setSelectedDate(d.toISOString().slice(0, 10))
+    d.setDate(d.getDate() + delta * (viewMode === 'week' ? 7 : 1))
+    setSelectedDate(dateToStr(d.getFullYear(), d.getMonth(), d.getDate()))
   }
 
   const dd = new Date(selectedDate + 'T00:00:00')
@@ -961,13 +1140,13 @@ export function ClinicCalendarPage() {
             </div>
 
             <div className="flex items-center gap-1 ml-auto">
-              <button onClick={() => navigateDay(-1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent text-muted-foreground">
+              <button onClick={() => navigate(-1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent text-muted-foreground">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button onClick={() => setSelectedDate(today)} className="h-8 px-3 rounded-lg border border-border text-[12px] font-medium text-foreground hover:bg-accent">
                 Сегодня
               </button>
-              <button onClick={() => navigateDay(1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent text-muted-foreground">
+              <button onClick={() => navigate(1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent text-muted-foreground">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -1011,7 +1190,7 @@ export function ClinicCalendarPage() {
           </div>
 
           {/* Timeline scroll area */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-4">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 p-4">
             {loading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1020,6 +1199,7 @@ export function ClinicCalendarPage() {
               <DayTimeline
                 appointments={dayAppts}
                 selectedId={selectedId}
+                isToday={selectedDate === today}
                 onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
                 onClickFreeSlot={(h) => { setPrefillHour(h); setShowModal(true) }}
               />
