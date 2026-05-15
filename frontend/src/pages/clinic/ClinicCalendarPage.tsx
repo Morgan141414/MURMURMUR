@@ -18,12 +18,14 @@ import {
 import { cn } from '@/lib/utils'
 import {
   listAppointments,
+  listCrmAppointments,
   createAppointment,
   updateAppointment,
   listClinicPatients,
   listClinicEmployees,
   listClinicServices,
   type Appointment as ApiAppointment,
+  type CrmAppointment,
   type Patient,
   type ClinicMembership,
   type ClinicService,
@@ -67,6 +69,7 @@ interface Appointment {
   reminder: string
   color: 'purple' | 'blue' | 'green' | 'amber' | 'gray'
   doctorMembershipId: number | null
+  source: 'clinic' | 'crm'
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -129,16 +132,43 @@ function transformAppt(
     doctor: doctorStr,
     room: '',
     phone: patient?.person.phone ?? '',
-    date: start.toISOString().slice(0, 10),
-    startHour: start.getUTCHours(),
-    startMin: start.getUTCMinutes(),
-    endHour: end.getUTCHours(),
-    endMin: end.getUTCMinutes(),
+    date: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    startHour: start.getHours(),
+    startMin: start.getMinutes(),
+    endHour: end.getHours(),
+    endMin: end.getMinutes(),
     status: frontendStatus,
     notes: a.reason ?? '',
     reminder: 'За 15 минут',
     color: STATUS_COLOR[frontendStatus] ?? 'purple',
     doctorMembershipId: a.doctor_membership_id ?? null,
+    source: 'clinic',
+  }
+}
+
+function transformCrmAppt(a: CrmAppointment, emps: ClinicMembership[]): Appointment {
+  const emp = emps.find((e) => e.id === a.doctor_membership_id)
+  const doctorStr = emp ? (emp.position || emp.role_code) : ''
+  const start = parseUtcDate(a.starts_at)
+  const end = parseUtcDate(a.ends_at)
+  return {
+    id: `crm-${a.id}`,
+    title: a.lead_name || a.title,
+    service: a.title,
+    doctor: doctorStr,
+    room: '',
+    phone: a.lead_mobile ?? '',
+    date: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    startHour: start.getHours(),
+    startMin: start.getMinutes(),
+    endHour: end.getHours(),
+    endMin: end.getMinutes(),
+    status: (a.status as AppointmentStatus) ?? 'created',
+    notes: a.notes ?? '',
+    reminder: 'За 15 минут',
+    color: 'purple',
+    doctorMembershipId: a.doctor_membership_id ?? null,
+    source: 'crm',
   }
 }
 
@@ -314,7 +344,12 @@ function EventDetail({
     <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3.5">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-[13px] font-semibold text-foreground leading-snug">{appt.title}</h3>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h3 className="text-[13px] font-semibold text-foreground leading-snug truncate">{appt.title}</h3>
+          {appt.source === 'crm' && (
+            <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/10 text-violet-600 border border-violet-500/20">CRM</span>
+          )}
+        </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <button className="flex h-6 w-6 items-center justify-center rounded hover:bg-accent text-muted-foreground"><Copy className="h-3 w-3" /></button>
           <button className="flex h-6 w-6 items-center justify-center rounded hover:bg-accent text-muted-foreground"><Trash2 className="h-3 w-3" /></button>
@@ -366,23 +401,29 @@ function EventDetail({
       </div>
 
       {/* Lifecycle */}
-      <div className="grid grid-cols-2 gap-1">
-        {LIFECYCLE.map(({ status, label }) => (
-          <button
-            key={status}
-            onClick={() => onStatusChange(appt.id, status)}
-            className={cn(
-              'rounded border px-2 py-1.5 text-[10px] font-medium transition-colors',
-              appt.status === status
-                ? 'border-foreground/20 bg-foreground/8 text-foreground'
-                : 'border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
-            )}
-          >
-            {appt.status === status && <Check className="inline h-2.5 w-2.5 mr-0.5" />}
-            {label}
-          </button>
-        ))}
-      </div>
+      {appt.source === 'crm' ? (
+        <p className="text-[11px] text-muted-foreground/60 text-center py-1">
+          Запись из CRM — управляйте статусом в Qtrix
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-1">
+          {LIFECYCLE.map(({ status, label }) => (
+            <button
+              key={status}
+              onClick={() => onStatusChange(appt.id, status)}
+              className={cn(
+                'rounded border px-2 py-1.5 text-[10px] font-medium transition-colors',
+                appt.status === status
+                  ? 'border-foreground/20 bg-foreground/8 text-foreground'
+                  : 'border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+            >
+              {appt.status === status && <Check className="inline h-2.5 w-2.5 mr-0.5" />}
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Links */}
       <div className="flex flex-col gap-1 pt-2 border-t border-border">
@@ -615,7 +656,10 @@ function DayTimeline({
               )}
               style={{ top, height }}
             >
-              <p className={cn('text-[12px] font-semibold leading-tight truncate', EVENT_TEXT[a.color])}>{a.title}</p>
+              <div className="flex items-center gap-1">
+                <p className={cn('text-[12px] font-semibold leading-tight truncate', EVENT_TEXT[a.color])}>{a.title}</p>
+                {a.source === 'crm' && <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase bg-violet-500/20 text-violet-600">CRM</span>}
+              </div>
               <p className={cn('text-[11px] leading-tight truncate opacity-75', EVENT_TEXT[a.color])}>
                 {fmtTime(a.startHour, a.startMin)} · {a.service}
               </p>
@@ -760,12 +804,15 @@ export function ClinicCalendarPage() {
       listClinicPatients(clinicId).then((r) => r.data),
       listClinicEmployees(clinicId).then((r) => r.data),
       listClinicServices(clinicId).then((r) => r.data),
+      listCrmAppointments(clinicId).then((r) => r.data).catch(() => [] as CrmAppointment[]),
     ])
-      .then(([appts, pats, emps, svcs]) => {
+      .then(([appts, pats, emps, svcs, crmAppts]) => {
         setPatients(pats)
         setEmployees(emps)
         setServices(svcs)
-        setAppointments(appts.map((a) => transformAppt(a, pats, emps, svcs)))
+        const clinic = appts.map((a) => transformAppt(a, pats, emps, svcs))
+        const crm = crmAppts.map((a) => transformCrmAppt(a, emps))
+        setAppointments([...clinic, ...crm])
       })
       .catch(() => {/* silently ignore load errors */})
       .finally(() => setLoading(false))

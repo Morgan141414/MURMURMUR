@@ -703,3 +703,18 @@ class NotificationRead(BaseModel):
 class NotificationMarkReadResponse(BaseModel):
     id: int
     read_at: datetime
+
+
+class CrmAppointmentRead(BaseModel):
+    """Appointment sourced from Qtrix CRM, normalized for calendar display."""
+    id: str                          # Qtrix UUID as string
+    source: str = "crm"
+    doctor_membership_id: int | None = None   # resolved from qtrix_user_id
+    doctor_qtrix_id: str | None = None
+    lead_name: str | None = None
+    lead_mobile: str | None = None
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+    title: str
+    notes: str | None = None

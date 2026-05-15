@@ -59,6 +59,20 @@ export interface Appointment {
   reason?: string | null
 }
 
+export interface CrmAppointment {
+  id: string
+  source: 'crm'
+  doctor_membership_id?: number | null
+  doctor_qtrix_id?: string | null
+  lead_name?: string | null
+  lead_mobile?: string | null
+  starts_at: string
+  ends_at: string
+  status: string
+  title: string
+  notes?: string | null
+}
+
 export interface ClinicMembership {
   id: number
   clinic_id: number
@@ -266,6 +280,10 @@ export function updateAppointment(
 
 export function listAppointments(clinicId: number) {
   return api.get<Appointment[]>(`/clinics/${clinicId}/appointments`)
+}
+
+export function listCrmAppointments(clinicId: number) {
+  return api.get<CrmAppointment[]>(`/clinics/${clinicId}/appointments/crm`)
 }
 
 export function listClinicEmployees(clinicId: number) {

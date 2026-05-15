@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from saphena.api.routers import admin, auth, bootstrap, clinics, google_calendar, health, integrations, operations
+from saphena.api.routers import admin, auth, bootstrap, clinics, google_calendar, health, integrations, operations, qtrix
 from saphena.core.config import get_settings
 from saphena.core.database import create_schema
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(integrations.router, prefix="/api/v1")
     app.include_router(bootstrap.router, prefix="/api/v1")
     app.include_router(google_calendar.router, prefix="/api/v1")
+    app.include_router(qtrix.router, prefix="/api/v1")
 
     if WEB_DIR.exists():
         @app.get("/", include_in_schema=False)
