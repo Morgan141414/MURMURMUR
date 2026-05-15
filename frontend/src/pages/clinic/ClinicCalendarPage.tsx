@@ -29,6 +29,7 @@ import {
   type ClinicService,
 } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
+import { useAuthStore } from '@/stores/authStore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,10 @@ type AppointmentStatus =
   | 'no_show'
   | 'rescheduled'
 
-type CalendarTab = 'all' | 'mine' | 'public' | 'archive'
+type CalendarTab = 'all' | 'archive'
+
+// Roles that can see all appointments (managers/admins)
+const MANAGER_ROLES = new Set(['clinic_founder', 'clinic_ceo', 'chief_doctor', 'reception_admin'])
 type ViewMode = 'day' | 'week'
 
 interface Appointment {
@@ -62,6 +66,7 @@ interface Appointment {
   notes: string
   reminder: string
   color: 'purple' | 'blue' | 'green' | 'amber' | 'gray'
+  doctorMembershipId: number | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -133,6 +138,7 @@ function transformAppt(
     notes: a.reason ?? '',
     reminder: 'За 15 минут',
     color: STATUS_COLOR[frontendStatus] ?? 'purple',
+    doctorMembershipId: a.doctor_membership_id ?? null,
   }
 }
 
@@ -413,6 +419,7 @@ function NewApptModal({
   patients,
   employees,
   services,
+  lockedDoctorId,
   onClose,
   onSave,
 }: {
@@ -421,11 +428,12 @@ function NewApptModal({
   patients: Patient[]
   employees: ClinicMembership[]
   services: ClinicService[]
+  lockedDoctorId?: number | null
   onClose: () => void
   onSave: (f: NewApptForm) => Promise<void>
 }) {
   const [patientId, setPatientId] = useState<string>(patients[0] ? String(patients[0].id) : '')
-  const [doctorId, setDoctorId] = useState<string>('')
+  const [doctorId, setDoctorId] = useState<string>(lockedDoctorId ? String(lockedDoctorId) : '')
   const [serviceId, setServiceId] = useState<string>('')
   const [startH, setStartH] = useState(prefillHour ?? 9)
   const [startM, setStartM] = useState(0)
@@ -486,12 +494,20 @@ function NewApptModal({
           </label>
           <label className="block space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Врач</span>
-            <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className={inputCls}>
-              <option value="">— не выбран —</option>
-              {employees.filter((e) => e.is_active).map((e) => (
-                <option key={e.id} value={String(e.id)}>{e.position || e.role_code}</option>
-              ))}
-            </select>
+            {lockedDoctorId ? (
+              <input
+                readOnly
+                value={employees.find((e) => e.id === lockedDoctorId)?.position || employees.find((e) => e.id === lockedDoctorId)?.role_code || ''}
+                className={cn(inputCls, 'opacity-60 cursor-not-allowed')}
+              />
+            ) : (
+              <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className={inputCls}>
+                <option value="">— не выбран —</option>
+                {employees.filter((e) => e.is_active).map((e) => (
+                  <option key={e.id} value={String(e.id)}>{e.position || e.role_code}</option>
+                ))}
+              </select>
+            )}
           </label>
           <label className="block space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Услуга</span>
@@ -716,7 +732,11 @@ function WeekTimeline({
 export function ClinicCalendarPage() {
   const today = todayStr()
   const activeOrgId = useOrgStore((s) => s.activeOrgId)
+  const activeRole = useOrgStore((s) => s.activeOrgRole())
+  const userId = useAuthStore((s) => s.userId)
   const clinicId = useMemo(() => (activeOrgId ? Number(activeOrgId) : null), [activeOrgId])
+
+  const isManager = activeRole ? MANAGER_ROLES.has(activeRole) : false
 
   const [selectedDate, setSelectedDate] = useState(today)
   const [activeTab, setActiveTab] = useState<CalendarTab>('all')
@@ -730,6 +750,7 @@ export function ClinicCalendarPage() {
   const [showModal, setShowModal] = useState(false)
   const [prefillHour, setPrefillHour] = useState<number | null>(null)
   const [search, setSearch] = useState('')
+  const [doctorFilterId, setDoctorFilterId] = useState<string>('')
 
   useEffect(() => {
     if (!clinicId) return
@@ -750,12 +771,28 @@ export function ClinicCalendarPage() {
       .finally(() => setLoading(false))
   }, [clinicId])
 
-  const tabFiltered = useMemo(() => {
-    if (activeTab === 'archive') return appointments.filter((a) => ['completed','canceled','no_show','rescheduled'].includes(a.status))
-    if (activeTab === 'mine') return appointments
-    if (activeTab === 'public') return appointments.filter((a) => a.color !== 'gray')
+  const myMembership = useMemo(
+    () => employees.find((e) => e.account_id === Number(userId)) ?? null,
+    [employees, userId],
+  )
+
+  const roleFiltered = useMemo(() => {
+    // Doctor: only see own appointments
+    if (!isManager && myMembership) {
+      return appointments.filter((a) => a.doctorMembershipId === myMembership.id)
+    }
+    // Manager with doctor filter applied
+    if (isManager && doctorFilterId) {
+      return appointments.filter((a) => a.doctorMembershipId === Number(doctorFilterId))
+    }
     return appointments
-  }, [appointments, activeTab])
+  }, [appointments, isManager, myMembership, doctorFilterId])
+
+  const tabFiltered = useMemo(() => {
+    if (activeTab === 'archive') return roleFiltered.filter((a) => ['completed','canceled','no_show','rescheduled'].includes(a.status))
+    // 'all' tab: exclude archived statuses
+    return roleFiltered.filter((a) => !['completed','canceled','no_show','rescheduled'].includes(a.status))
+  }, [roleFiltered, activeTab])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return tabFiltered
@@ -821,9 +858,7 @@ export function ClinicCalendarPage() {
   const weekday = dd.toLocaleDateString('ru-RU', { weekday: 'long' })
 
   const TABS: { key: CalendarTab; label: string }[] = [
-    { key: 'all',     label: 'Все записи' },
-    { key: 'mine',    label: 'Мои' },
-    { key: 'public',  label: 'Публичные' },
+    { key: 'all',     label: isManager ? 'Активные' : 'Мои записи' },
     { key: 'archive', label: 'Архив' },
   ]
 
@@ -905,6 +940,19 @@ export function ClinicCalendarPage() {
               ))}
             </div>
 
+            {isManager && (
+              <select
+                value={doctorFilterId}
+                onChange={(e) => setDoctorFilterId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">Все врачи</option>
+                {employees.filter((e) => e.is_active).map((e) => (
+                  <option key={e.id} value={String(e.id)}>{e.position || e.role_code}</option>
+                ))}
+              </select>
+            )}
+
             <button
               onClick={() => { setPrefillHour(null); setShowModal(true) }}
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-foreground text-background text-[12px] font-medium hover:opacity-90"
@@ -974,6 +1022,7 @@ export function ClinicCalendarPage() {
           patients={patients}
           employees={employees}
           services={services}
+          lockedDoctorId={!isManager ? myMembership?.id : null}
           onClose={() => setShowModal(false)}
           onSave={handleAddAppt}
         />
