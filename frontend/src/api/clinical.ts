@@ -81,6 +81,12 @@ export interface ClinicMembership {
   department?: string | null
   position?: string | null
   is_active: boolean
+  person?: {
+    first_name: string
+    last_name: string
+    middle_name?: string | null
+    phone?: string | null
+  } | null
 }
 
 export interface RoleDefinition {
@@ -324,6 +330,14 @@ export function createClinicService(clinicId: number, payload: ClinicServiceCrea
 
 export function createScheduleSlot(clinicId: number, payload: ScheduleSlotCreatePayload) {
   return api.post<ScheduleSlot>(`/clinics/${clinicId}/schedule/slots`, payload)
+}
+
+export function updateScheduleSlot(clinicId: number, slotId: number, payload: Partial<ScheduleSlotCreatePayload>) {
+  return api.patch<ScheduleSlot>(`/clinics/${clinicId}/schedule/slots/${slotId}`, payload)
+}
+
+export function deleteScheduleSlot(clinicId: number, slotId: number) {
+  return api.delete(`/clinics/${clinicId}/schedule/slots/${slotId}`)
 }
 
 export function listScheduleSlots(clinicId: number) {

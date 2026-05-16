@@ -803,6 +803,39 @@ def update_doctor_schedule_slot(
     return item
 
 
+@router.delete(
+    "/clinics/{clinic_id}/schedule/slots/{slot_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_doctor_schedule_slot(
+    clinic_id: int,
+    slot_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> None:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing schedule rights",
+        )
+    item = db.get(ScheduleSlot, slot_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
+    audit(
+        db,
+        action="schedule_slot.delete",
+        entity_type="schedule_slot",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.delete(item)
+    db.commit()
+
+
 @router.post(
     "/clinics/{clinic_id}/appointments",
     response_model=AppointmentRead,

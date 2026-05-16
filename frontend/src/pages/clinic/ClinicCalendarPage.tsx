@@ -32,6 +32,8 @@ import {
 } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
 import { useAuthStore } from '@/stores/authStore'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { TimePicker } from '@/components/shared/TimePicker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -504,105 +506,6 @@ function EventDetail({
   )
 }
 
-// ─── Searchable Select ────────────────────────────────────────────────────────
-
-function SearchableSelect({
-  label,
-  placeholder,
-  value,
-  onChange,
-  options,
-  required,
-  compact,
-}: {
-  label: string
-  placeholder: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string; sub?: string }[]
-  required?: boolean
-  compact?: boolean
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  const selected = options.find((o) => o.value === value)
-  const filtered = query.trim()
-    ? options.filter((o) => `${o.label} ${o.sub ?? ''}`.toLowerCase().includes(query.toLowerCase()))
-    : options
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  function select(v: string) {
-    onChange(v)
-    setQuery('')
-    setOpen(false)
-  }
-
-  const inputCls = compact
-    ? 'w-full rounded-lg border border-border bg-background px-2 pr-7 text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 h-8'
-    : 'w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30'
-
-  return (
-    <div className={compact ? 'relative w-44' : 'block space-y-1'} ref={ref}>
-      {!compact && (
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-          {label}{required && ' *'}
-        </span>
-      )}
-      <div className="relative">
-        <input
-          className={inputCls}
-          placeholder={open ? 'Поиск...' : (selected ? selected.label : placeholder)}
-          value={open ? query : (selected ? selected.label : '')}
-          onFocus={() => { setOpen(true); setQuery('') }}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
-        />
-        {value && !open && (
-          <button
-            type="button"
-            onClick={() => { onChange(''); setQuery('') }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-        {open && (
-          <div className="absolute z-[200] mt-1 w-full min-w-[180px] rounded-lg border border-border bg-card shadow-lg overflow-hidden">
-            <div className="max-h-52 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <p className="px-3 py-2 text-[12px] text-muted-foreground">Не найдено</p>
-              ) : (
-                filtered.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => select(o.value)}
-                    className={cn(
-                      'w-full text-left px-3 py-2 text-[13px] hover:bg-accent flex items-center justify-between gap-2',
-                      o.value === value && 'bg-accent',
-                    )}
-                  >
-                    <span className="truncate">{o.label}</span>
-                    {o.sub && <span className="text-[11px] text-muted-foreground shrink-0">{o.sub}</span>}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── New Appointment Modal ────────────────────────────────────────────────────
 
 interface NewApptForm {
@@ -656,6 +559,16 @@ function NewApptModal({
     const total = startH * 60 + m + durationMin
     setEndH(Math.floor(total / 60) % 24)
     setEndM(total % 60)
+  }
+  function applyStart(h: number, m: number) {
+    setStartH(h); setStartM(m)
+    const total = h * 60 + m + durationMin
+    setEndH(Math.floor(total / 60) % 24)
+    setEndM(total % 60)
+  }
+  function applyEnd(h: number, m: number) {
+    setEndH(h); setEndM(m)
+    setDurationMin(Math.max(0, h * 60 + m - (startH * 60 + startM)))
   }
   function applyEndH(h: number) {
     setEndH(h)
@@ -753,22 +666,8 @@ function NewApptModal({
             }))}
           />
           <div className="grid grid-cols-2 gap-3">
-            <label className="block space-y-1">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Начало</span>
-              <div className="flex gap-1">
-                <input type="number" min={0} max={23} value={startH} onChange={(e) => applyStartH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
-                <span className="py-2 text-muted-foreground text-[13px]">:</span>
-                <input type="number" min={0} max={59} step={15} value={startM} onChange={(e) => applyStartM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
-              </div>
-            </label>
-            <label className="block space-y-1">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Конец</span>
-              <div className="flex gap-1">
-                <input type="number" min={0} max={23} value={endH} onChange={(e) => applyEndH(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
-                <span className="py-2 text-muted-foreground text-[13px]">:</span>
-                <input type="number" min={0} max={59} step={15} value={endM} onChange={(e) => applyEndM(+e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-2 text-[13px] text-center text-foreground focus:outline-none" />
-              </div>
-            </label>
+            <TimePicker label="Начало" h={startH} m={startM} onChange={applyStart} />
+            <TimePicker label="Конец" h={endH} m={endM} onChange={applyEnd} />
           </div>
           <label className="block space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Заметки / причина</span>

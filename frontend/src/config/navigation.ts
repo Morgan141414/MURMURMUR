@@ -9,7 +9,7 @@ import {
   Shield, ClipboardCheck,
   Megaphone, HeadphonesIcon, Scale, DollarSign,
   ContactRound,
-  CalendarDays, Stethoscope,
+  CalendarDays, Stethoscope, LayoutList,
   Calculator, HeartPulse, ReceiptText, ChartNoAxesCombined, Settings2, Bell,
   type LucideIcon,
 } from 'lucide-react'
@@ -53,6 +53,7 @@ export const companyNav: NavSection[] = [
     items: [
       { to: '/clinic', labelKey: 'nav.clinicCommandCenter', icon: HeartPulse, roles: clinicCareRoles },
       { to: '/clinic/calendar', labelKey: 'nav.calendar', icon: CalendarDays, roles: clinicCareRoles },
+      { to: '/clinic/schedule', labelKey: 'nav.schedule', icon: LayoutList, roles: clinicCareRoles },
       { to: '/clinic/appointments', labelKey: 'nav.appointments', icon: ClipboardCheck, roles: clinicCareRoles },
       { to: '/clinic/patients', labelKey: 'nav.patients', icon: UsersRound, roles: clinicCareRoles },
       { to: '/clinic/medical-records', labelKey: 'nav.medicalRecords', icon: HeartPulse, roles: [...clinicLeadershipRoles, 'doctor'] },

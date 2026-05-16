@@ -66,6 +66,7 @@ const AccountingPage = lazyRoute(() => import('@/pages/company/accounting/Accoun
 // ── QorMed Clinical OS pages ──
 const ClinicDashboardPage = lazyRoute(() => import('@/pages/clinic/ClinicDashboardPage'))
 const ClinicCalendarPage = lazyRoute(() => import('@/pages/clinic/ClinicCalendarPage'))
+const ClinicSchedulePage = lazyRoute(() => import('@/pages/clinic/ClinicSchedulePage'))
 const ClinicAppointmentsPage = lazyRoute(() => import('@/pages/clinic/ClinicAppointmentsPage'))
 const ClinicPatientsPage = lazyRoute(() => import('@/pages/clinic/ClinicPatientsPage'))
 const ClinicPatientCardPage = lazyRoute(() => import('@/pages/clinic/ClinicPatientCardPage'))
@@ -232,6 +233,7 @@ export const router = createBrowserRouter([
           { path: '/company/clinical', element: <W><ClinicalWorkspacePage /></W> },
           { path: '/clinic', element: <W><ClinicDashboardPage /></W> },
           { path: '/clinic/calendar', element: <W><ClinicCalendarPage /></W> },
+          { path: '/clinic/schedule', element: <W><ClinicSchedulePage /></W> },
           { path: '/clinic/appointments', element: <W><ClinicAppointmentsPage /></W> },
           { path: '/clinic/patients', element: <W><ClinicPatientsPage /></W> },
           { path: '/clinic/medical-records', element: <Navigate to="/clinic/patients" replace /> },

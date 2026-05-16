@@ -298,6 +298,15 @@ class ClinicServiceRead(BaseModel):
     is_active: bool
 
 
+class MembershipPersonRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    first_name: str
+    last_name: str
+    middle_name: str | None = None
+    phone: str | None = None
+
+
 class MembershipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -308,6 +317,7 @@ class MembershipRead(BaseModel):
     department: str | None = None
     position: str | None = None
     is_active: bool
+    person: MembershipPersonRead | None = None
 
 
 class RoleDefinitionRead(BaseModel):

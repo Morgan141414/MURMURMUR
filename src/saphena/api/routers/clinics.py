@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from saphena.api.deps import CurrentAccount, DbSession
 from saphena.api.schemas import (
@@ -213,11 +214,20 @@ def list_employees(
         or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing clinic rights")
-    return list(
+    memberships = list(
         db.scalars(
-            select(ClinicMembership).where(ClinicMembership.clinic_id == clinic_id)
+            select(ClinicMembership)
+            .where(ClinicMembership.clinic_id == clinic_id)
+            .options(joinedload(ClinicMembership.account).joinedload(Account.person))
         ).all()
     )
+    # Attach person data so MembershipRead can serialize it
+    for m in memberships:
+        try:
+            m.person = m.account.person  # type: ignore[attr-defined]
+        except Exception:
+            m.person = None  # type: ignore[attr-defined]
+    return memberships
 
 
 @router.get("/roles/catalog", response_model=list[RoleDefinitionRead])
