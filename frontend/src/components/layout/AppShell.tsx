@@ -20,9 +20,10 @@ export function AppShell() {
   useSessionKeepAlive()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const isMessengerRoute = location.pathname.startsWith('/messenger')
+  const isFullHeightRoute = isMessengerRoute || location.pathname.startsWith('/clinic/calendar')
 
   return (
-    <div className="app-shell-stage relative flex min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="app-shell-stage relative flex h-screen overflow-hidden bg-background text-foreground">
       <CommandPalette />
 
       <a href="#main-content" className="skip-to-content">
@@ -43,17 +44,19 @@ export function AppShell() {
 
         <main
           id="main-content"
-          className={isMessengerRoute ? 'flex-1 overflow-hidden bg-background' : 'flex-1 overflow-y-auto overflow-x-hidden bg-background pb-16 md:pb-0'}
+          className={isFullHeightRoute ? 'flex-1 overflow-hidden bg-background' : 'flex-1 overflow-y-auto overflow-x-hidden bg-background pb-16 md:pb-0'}
           role="main"
         >
           <div
             className={
-              isMessengerRoute
+              isFullHeightRoute
                 ? 'flex h-full w-full flex-col'
                 : 'flex min-h-full w-full flex-col px-4 py-4 md:px-6 md:py-6'
             }
           >
-            {isMessengerRoute ? (
+            {isFullHeightRoute && !isMessengerRoute ? (
+              <Outlet />
+            ) : isMessengerRoute ? (
               <Suspense fallback={<div className="h-full rounded-lg border border-border bg-card" />}>
                 <MessengerPage />
               </Suspense>

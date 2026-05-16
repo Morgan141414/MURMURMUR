@@ -1,0 +1,1 @@
+import{y as i}from"./index-CTuUZ-1s.js";function s(t,r){return i.get(`/orgs/${t}/audit`,{params:r})}function o(t,r){return i.get(`/orgs/${t}/audit`,{params:{...r,export:"csv"}})}function g(t,r){return i.get(`/orgs/${t}/audit/${r}`)}function d(t,r,u,a=200,e=0){return i.get(`/orgs/${t}/audit/entity/${r}/${u}`,{params:{limit:a,offset:e}})}export{d as a,o as e,g,s as l};

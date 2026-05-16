@@ -504,6 +504,105 @@ function EventDetail({
   )
 }
 
+// ─── Searchable Select ────────────────────────────────────────────────────────
+
+function SearchableSelect({
+  label,
+  placeholder,
+  value,
+  onChange,
+  options,
+  required,
+  compact,
+}: {
+  label: string
+  placeholder: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string; sub?: string }[]
+  required?: boolean
+  compact?: boolean
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const selected = options.find((o) => o.value === value)
+  const filtered = query.trim()
+    ? options.filter((o) => `${o.label} ${o.sub ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+    : options
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function select(v: string) {
+    onChange(v)
+    setQuery('')
+    setOpen(false)
+  }
+
+  const inputCls = compact
+    ? 'w-full rounded-lg border border-border bg-background px-2 pr-7 text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 h-8'
+    : 'w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30'
+
+  return (
+    <div className={compact ? 'relative w-44' : 'block space-y-1'} ref={ref}>
+      {!compact && (
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          {label}{required && ' *'}
+        </span>
+      )}
+      <div className="relative">
+        <input
+          className={inputCls}
+          placeholder={open ? 'Поиск...' : (selected ? selected.label : placeholder)}
+          value={open ? query : (selected ? selected.label : '')}
+          onFocus={() => { setOpen(true); setQuery('') }}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        />
+        {value && !open && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); setQuery('') }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {open && (
+          <div className="absolute z-[200] mt-1 w-full min-w-[180px] rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+            <div className="max-h-52 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <p className="px-3 py-2 text-[12px] text-muted-foreground">Не найдено</p>
+              ) : (
+                filtered.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => select(o.value)}
+                    className={cn(
+                      'w-full text-left px-3 py-2 text-[13px] hover:bg-accent flex items-center justify-between gap-2',
+                      o.value === value && 'bg-accent',
+                    )}
+                  >
+                    <span className="truncate">{o.label}</span>
+                    {o.sub && <span className="text-[11px] text-muted-foreground shrink-0">{o.sub}</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── New Appointment Modal ────────────────────────────────────────────────────
 
 interface NewApptForm {
@@ -608,43 +707,51 @@ function NewApptModal({
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent text-muted-foreground"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3">
-          <label className="block space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Пациент *</span>
-            <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className={inputCls}>
-              <option value="">— выберите пациента —</option>
-              {patients.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {[p.person.last_name, p.person.first_name, p.person.middle_name].filter(Boolean).join(' ')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Врач</span>
-            {lockedDoctorId ? (
+          <SearchableSelect
+            label="Пациент"
+            placeholder="— выберите пациента —"
+            value={patientId}
+            onChange={setPatientId}
+            required
+            options={patients.map((p) => ({
+              value: String(p.id),
+              label: [p.person.last_name, p.person.first_name, p.person.middle_name].filter(Boolean).join(' '),
+              sub: p.person.phone ?? undefined,
+            }))}
+          />
+          {lockedDoctorId ? (
+            <label className="block space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Врач</span>
               <input
                 readOnly
                 value={employees.find((e) => e.id === lockedDoctorId)?.position || employees.find((e) => e.id === lockedDoctorId)?.role_code || ''}
                 className={cn(inputCls, 'opacity-60 cursor-not-allowed')}
               />
-            ) : (
-              <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className={inputCls}>
-                <option value="">— не выбран —</option>
-                {employees.filter((e) => e.is_active).map((e) => (
-                  <option key={e.id} value={String(e.id)}>{e.position || e.role_code}</option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className="block space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Услуга</span>
-            <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={inputCls}>
-              <option value="">— не выбрана —</option>
-              {services.map((s) => (
-                <option key={s.id} value={String(s.id)}>{s.title}</option>
-              ))}
-            </select>
-          </label>
+            </label>
+          ) : (
+            <SearchableSelect
+              label="Врач"
+              placeholder="— не выбран —"
+              value={doctorId}
+              onChange={setDoctorId}
+              options={employees.filter((e) => e.is_active).map((e) => ({
+                value: String(e.id),
+                label: [e.position, e.role_code].filter(Boolean)[0] ?? '',
+                sub: e.department ?? undefined,
+              }))}
+            />
+          )}
+          <SearchableSelect
+            label="Услуга"
+            placeholder="— не выбрана —"
+            value={serviceId}
+            onChange={setServiceId}
+            options={services.map((s) => ({
+              value: String(s.id),
+              label: s.title,
+              sub: s.price ? `${s.price} ₸` : undefined,
+            }))}
+          />
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Начало</span>
@@ -1126,7 +1233,7 @@ export function ClinicCalendarPage() {
         {/* Timeline area */}
         <div className="flex flex-1 flex-col min-w-0">
           {/* Controls */}
-          <div className="flex items-center gap-2 px-6 py-3 border-b border-border bg-background/80 backdrop-blur shrink-0 flex-wrap gap-y-2">
+          <div className="relative z-20 flex items-center gap-2 px-6 py-3 border-b border-border bg-background/80 backdrop-blur shrink-0 flex-wrap gap-y-2">
             {/* Date badge */}
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl border border-border bg-card shrink-0">
@@ -1167,16 +1274,18 @@ export function ClinicCalendarPage() {
             </div>
 
             {isManager && (
-              <select
+              <SearchableSelect
+                compact
+                label="Врач"
+                placeholder="Все врачи"
                 value={doctorFilterId}
-                onChange={(e) => setDoctorFilterId(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="">Все врачи</option>
-                {employees.filter((e) => e.is_active).map((e) => (
-                  <option key={e.id} value={String(e.id)}>{e.position || e.role_code}</option>
-                ))}
-              </select>
+                onChange={setDoctorFilterId}
+                options={employees.filter((e) => e.is_active).map((e) => ({
+                  value: String(e.id),
+                  label: e.position || e.role_code,
+                  sub: e.department || undefined,
+                }))}
+              />
             )}
 
             <button
