@@ -590,17 +590,18 @@ function NewApptModal({
   // Schedule availability check
   const docMid = doctorId ? parseInt(doctorId) : null
   const availability = useMemo(() => {
-    if (!docMid || !scheduleSlots.length) return null
-    // Build ISO start/end for the selected date + time
+    if (!docMid) return null
+    if (!scheduleSlots.length) return null
+    // Local time input → UTC timestamp (getTime() always returns ms-since-epoch in UTC)
     const apptStart = new Date(`${date}T${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`).getTime()
     const apptEnd = new Date(`${date}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`).getTime()
-    return scheduleSlots.some(
-      (s) =>
-        s.doctor_membership_id === docMid &&
-        s.status === 'available' &&
-        new Date(s.starts_at).getTime() <= apptStart &&
-        new Date(s.ends_at).getTime() >= apptEnd,
-    )
+    return scheduleSlots.some((s) => {
+      if (s.doctor_membership_id !== docMid || s.status !== 'available') return false
+      // Slot times are stored as UTC without Z — add Z so browser parses as UTC
+      const slotStart = new Date(s.starts_at.endsWith('Z') ? s.starts_at : s.starts_at + 'Z').getTime()
+      const slotEnd = new Date(s.ends_at.endsWith('Z') ? s.ends_at : s.ends_at + 'Z').getTime()
+      return slotStart <= apptStart && slotEnd >= apptEnd
+    })
   }, [docMid, scheduleSlots, date, startH, startM, endH, endM])
 
   async function save() {
