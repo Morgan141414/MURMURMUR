@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   Activity,
@@ -28,6 +28,14 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import {
+  listClinicServices,
+  listClinicEmployees,
+  updateClinicService,
+  type ClinicService,
+  type ClinicMembership,
+} from '@/api/clinical'
+import { useOrgStore } from '@/stores/orgStore'
 
 type PatientStatus = 'ready' | 'risk' | 'debt' | 'new'
 type VisitStatus = 'waiting' | 'confirmed' | 'arrived' | 'in-progress' | 'done' | 'payment' | 'canceled' | 'no-show'
@@ -637,33 +645,222 @@ export function ClinicAnalyticsPage() {
   )
 }
 
+function doctorDisplayName(emp: ClinicMembership): string {
+  if (emp.person) {
+    const { last_name, first_name, middle_name } = emp.person
+    return [last_name, first_name, middle_name].filter(Boolean).join(' ')
+  }
+  return `Сотрудник #${emp.id}`
+}
+
 export function ClinicSettingsPage() {
+  const activeOrgId = useOrgStore((s) => s.activeOrgId)
+  const clinicId = activeOrgId ? Number(activeOrgId) : null
+
+  const [services, setServices] = useState<ClinicService[]>([])
+  const [employees, setEmployees] = useState<ClinicMembership[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<number | null>(null)
+  const [query, setQuery] = useState('')
+  const [tab, setTab] = useState<'services' | 'overview'>('services')
+
+  useEffect(() => {
+    if (!clinicId) return
+    Promise.all([
+      listClinicServices(clinicId).then((r) => r.data),
+      listClinicEmployees(clinicId).then((r) => r.data),
+    ])
+      .then(([svcs, emps]) => {
+        setServices(svcs)
+        setEmployees(emps.filter((e) => e.is_active && e.role_code === 'doctor'))
+      })
+      .finally(() => setLoading(false))
+  }, [clinicId])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return services.filter((s) => !q || s.title.toLowerCase().includes(q) || s.code.includes(q))
+  }, [services, query])
+
+  const handleAssign = useCallback(
+    async (service: ClinicService, doctorMembershipId: number | null) => {
+      if (!clinicId) return
+      setSaving(service.id)
+      try {
+        const { data } = await updateClinicService(clinicId, service.id, {
+          doctor_membership_id: doctorMembershipId,
+        })
+        setServices((prev) => prev.map((s) => (s.id === data.id ? data : s)))
+      } finally {
+        setSaving(null)
+      }
+    },
+    [clinicId],
+  )
+
+  const handleToggleActive = useCallback(
+    async (service: ClinicService) => {
+      if (!clinicId) return
+      setSaving(service.id)
+      try {
+        const { data } = await updateClinicService(clinicId, service.id, {
+          is_active: !service.is_active,
+        })
+        setServices((prev) => prev.map((s) => (s.id === data.id ? data : s)))
+      } finally {
+        setSaving(null)
+      }
+    },
+    [clinicId],
+  )
+
+  const assignedCount = services.filter((s) => s.doctor_membership_id != null).length
+  const sharedCount = services.filter((s) => s.doctor_membership_id == null && s.is_active).length
+
   return (
     <ClinicShell
       eyebrow="Справочники"
-      title="Настройки клиники, которые держат систему в порядке"
-      description="Филиалы, врачи, услуги, кабинеты, цены, роли и печатные формы должны жить здесь, а не расползаться по разным меню."
-      actions={<Button><Settings2 className="mr-2 h-4 w-4" />Добавить справочник</Button>}
+      title="Настройки клиники"
+      description="Управляйте услугами: назначайте их конкретным врачам или оставляйте общими для всех."
     >
-      <section className="clinic-os-settings-grid">
-        {[
-          ['Врачи и смены', UsersRound],
-          ['Услуги и цены', Banknote],
-          ['Кабинеты', LayoutDashboard],
-          ['Роли доступа', ShieldCheck],
-          ['Печатные формы', FileText],
-          ['Интеграции', Sparkles],
-        ].map(([label, Icon]) => {
-          const TypedIcon = Icon as typeof UsersRound
-          return (
-            <article className="clinic-os-setting-card" key={String(label)}>
-              <TypedIcon className="h-5 w-5" />
-              <strong>{String(label)}</strong>
-              <span>Настроить</span>
-            </article>
-          )
-        })}
-      </section>
+      <nav className="clinic-os-tabs" aria-label="Разделы настроек">
+        <button
+          type="button"
+          className={tab === 'overview' ? 'is-active' : undefined}
+          onClick={() => setTab('overview')}
+        >
+          Обзор
+        </button>
+        <button
+          type="button"
+          className={tab === 'services' ? 'is-active' : undefined}
+          onClick={() => setTab('services')}
+        >
+          Услуги и врачи
+        </button>
+      </nav>
+
+      {tab === 'overview' && (
+        <section className="clinic-os-settings-grid">
+          {[
+            ['Врачи и смены', UsersRound],
+            ['Услуги и цены', Banknote],
+            ['Кабинеты', LayoutDashboard],
+            ['Роли доступа', ShieldCheck],
+            ['Печатные формы', FileText],
+            ['Интеграции', Sparkles],
+          ].map(([label, Icon]) => {
+            const TypedIcon = Icon as typeof UsersRound
+            return (
+              <article
+                className={cn('clinic-os-setting-card', label === 'Услуги и цены' && 'cursor-pointer')}
+                key={String(label)}
+                onClick={label === 'Услуги и цены' ? () => setTab('services') : undefined}
+              >
+                <TypedIcon className="h-5 w-5" />
+                <strong>{String(label)}</strong>
+                <span>Настроить</span>
+              </article>
+            )
+          })}
+        </section>
+      )}
+
+      {tab === 'services' && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="mis-card rounded-xl p-4">
+              <p className="text-[12px] text-text-tertiary">Всего услуг</p>
+              <p className="mt-2 text-[24px] font-bold text-foreground leading-none">{services.length}</p>
+            </div>
+            <div className="mis-card rounded-xl p-4">
+              <p className="text-[12px] text-text-tertiary">Общие (для всех врачей)</p>
+              <p className="mt-2 text-[24px] font-bold text-foreground leading-none">{sharedCount}</p>
+            </div>
+            <div className="mis-card rounded-xl p-4">
+              <p className="text-[12px] text-text-tertiary">Привязаны к врачу</p>
+              <p className="mt-2 text-[24px] font-bold text-foreground leading-none">{assignedCount}</p>
+            </div>
+          </div>
+
+          <section className="mis-card rounded-xl p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <Search className="h-4 w-4 shrink-0 text-text-tertiary" />
+              <input
+                className="flex-1 bg-transparent text-[14px] text-foreground outline-none placeholder:text-text-quaternary"
+                placeholder="Поиск по названию или коду"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+
+            {loading ? (
+              <p className="py-6 text-center text-[14px] text-text-tertiary">Загрузка...</p>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((svc) => {
+                  const isSaving = saving === svc.id
+                  const assignedDoc = employees.find((e) => e.id === svc.doctor_membership_id)
+                  return (
+                    <div
+                      key={svc.id}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3 transition-colors',
+                        !svc.is_active && 'opacity-50',
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-foreground">{svc.title}</p>
+                        <p className="text-[11px] text-text-tertiary">
+                          {svc.duration_minutes} мин
+                          {svc.price != null
+                            ? ` · ${svc.price === 0 ? 'Бесплатно' : `${svc.price.toLocaleString('ru-RU')} ₸`}`
+                            : ''}
+                          {' · '}
+                          <span className="font-mono">{svc.code}</span>
+                        </p>
+                      </div>
+
+                      <select
+                        disabled={isSaving || !svc.is_active}
+                        className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-foreground outline-none focus:border-primary disabled:opacity-50"
+                        value={svc.doctor_membership_id ?? ''}
+                        onChange={(e) =>
+                          handleAssign(svc, e.target.value ? parseInt(e.target.value) : null)
+                        }
+                      >
+                        <option value="">Общая (все врачи)</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {doctorDisplayName(emp)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleToggleActive(svc)}
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50',
+                          svc.is_active
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20'
+                            : 'border-border bg-surface-2 text-text-tertiary hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20',
+                        )}
+                      >
+                        {isSaving ? '...' : svc.is_active ? 'Активна' : 'Скрыта'}
+                      </button>
+                    </div>
+                  )
+                })}
+                {filtered.length === 0 && (
+                  <p className="py-6 text-center text-[14px] text-text-tertiary">Ничего не найдено</p>
+                )}
+              </div>
+            )}
+          </section>
+        </>
+      )}
     </ClinicShell>
   )
 }

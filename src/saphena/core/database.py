@@ -70,6 +70,9 @@ def create_schema() -> None:
                 "appointments": {
                     "google_event_id": "ALTER TABLE appointments ADD COLUMN google_event_id VARCHAR(256)",
                 },
+                "clinic_services": {
+                    "doctor_membership_id": "ALTER TABLE clinic_services ADD COLUMN doctor_membership_id INTEGER REFERENCES clinic_memberships(id)",
+                },
             }
             for table_name, additions in schema_additions.items():
                 existing_columns = {

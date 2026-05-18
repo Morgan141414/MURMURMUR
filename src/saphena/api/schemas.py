@@ -279,10 +279,20 @@ class ClinicRoomRead(BaseModel):
 
 class ClinicServiceCreate(BaseModel):
     department_id: int | None = None
+    doctor_membership_id: int | None = None
     code: str = Field(min_length=2, max_length=80)
     title: str = Field(min_length=1, max_length=255)
     duration_minutes: int = Field(default=30, ge=5, le=480)
     price: int | None = Field(default=None, ge=0)
+
+
+class ClinicServiceUpdate(BaseModel):
+    department_id: int | None = None
+    doctor_membership_id: int | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    duration_minutes: int | None = Field(default=None, ge=5, le=480)
+    price: int | None = None
+    is_active: bool | None = None
 
 
 class ClinicServiceRead(BaseModel):
@@ -291,6 +301,7 @@ class ClinicServiceRead(BaseModel):
     id: int
     clinic_id: int
     department_id: int | None = None
+    doctor_membership_id: int | None = None
     code: str
     title: str
     duration_minutes: int

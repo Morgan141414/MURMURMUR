@@ -213,6 +213,7 @@ export interface ClinicGeneratedDocument {
 
 export interface ClinicServiceCreatePayload {
   department_id?: number | null
+  doctor_membership_id?: number | null
   code: string
   title: string
   duration_minutes?: number
@@ -223,6 +224,7 @@ export interface ClinicService {
   id: number
   clinic_id: number
   department_id?: number | null
+  doctor_membership_id?: number | null
   code: string
   title: string
   duration_minutes: number
@@ -326,6 +328,14 @@ export function listClinicServices(clinicId: number) {
 
 export function createClinicService(clinicId: number, payload: ClinicServiceCreatePayload) {
   return api.post<ClinicService>(`/clinics/${clinicId}/services`, payload)
+}
+
+export function updateClinicService(
+  clinicId: number,
+  serviceId: number,
+  payload: Partial<ClinicServiceCreatePayload> & { is_active?: boolean },
+) {
+  return api.patch<ClinicService>(`/clinics/${clinicId}/services/${serviceId}`, payload)
 }
 
 export function createScheduleSlot(clinicId: number, payload: ScheduleSlotCreatePayload) {

@@ -25,12 +25,14 @@ import {
   listClinicPatients,
   listClinicEmployees,
   listClinicServices,
+  listClinicDepartments,
   listScheduleSlots,
   type Appointment as ApiAppointment,
   type CrmAppointment,
   type Patient,
   type ClinicMembership,
   type ClinicService,
+  type ClinicDepartment,
   type ScheduleSlot,
 } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
@@ -529,6 +531,7 @@ function NewApptModal({
   patients,
   employees,
   services,
+  departments,
   scheduleSlots,
   lockedDoctorId,
   onClose,
@@ -539,6 +542,7 @@ function NewApptModal({
   patients: Patient[]
   employees: ClinicMembership[]
   services: ClinicService[]
+  departments: ClinicDepartment[]
   scheduleSlots: ScheduleSlot[]
   lockedDoctorId?: number | null
   onClose: () => void
@@ -546,8 +550,31 @@ function NewApptModal({
 }) {
   const [patientId, setPatientId] = useState<string>(patients[0] ? String(patients[0].id) : '')
   const [doctorId, setDoctorId] = useState<string>(lockedDoctorId ? String(lockedDoctorId) : '')
-  const [serviceId, setServiceId] = useState<string>('')
-  const [durationMin, setDurationMin] = useState(30)
+
+  // Default to "Консультация с УЗИ" (paid), fall back to first "Консультация с УЗИ" variant, then empty
+  const defaultServiceId = useMemo(() => {
+    const uziPaid = services.find((s) => s.is_active && s.title === 'Консультация с УЗИ')
+    const uziAny = services.find((s) => s.is_active && s.title.includes('УЗИ'))
+    return uziPaid ? String(uziPaid.id) : uziAny ? String(uziAny.id) : ''
+  }, [services])
+
+  const [serviceId, setServiceId] = useState<string>(() => {
+    const uziPaid = services.find((s) => s.is_active && s.title === 'Консультация с УЗИ')
+    const uziAny = services.find((s) => s.is_active && s.title.includes('УЗИ'))
+    return uziPaid ? String(uziPaid.id) : uziAny ? String(uziAny.id) : ''
+  })
+
+  // Keep serviceId in sync if services load after mount
+  useEffect(() => {
+    if (!serviceId && defaultServiceId) setServiceId(defaultServiceId)
+  }, [defaultServiceId])
+
+  const [durationMin, setDurationMin] = useState(() => {
+    const uziPaid = services.find((s) => s.is_active && s.title === 'Консультация с УЗИ')
+    const uziAny = services.find((s) => s.is_active && s.title.includes('УЗИ'))
+    const svc = uziPaid ?? uziAny
+    return svc?.duration_minutes ?? 30
+  })
   const [startH, setStartH] = useState(prefillHour ?? 9)
   const [startM, setStartM] = useState(0)
   const [endH, setEndH] = useState(prefillHour ?? 9)
@@ -586,6 +613,28 @@ function NewApptModal({
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Services filtered by selected doctor: show shared services (doctor_membership_id = null)
+  // plus services explicitly assigned to that doctor
+  const filteredServices = useMemo(() => {
+    const active = services.filter((s) => s.is_active)
+    if (!doctorId) return active
+    const docId = parseInt(doctorId)
+    return active.filter(
+      (s) => s.doctor_membership_id == null || s.doctor_membership_id === docId,
+    )
+  }, [doctorId, services])
+
+  function handleServiceChange(sid: string) {
+    setServiceId(sid)
+    if (!sid) return
+    const svc = services.find((s) => String(s.id) === sid)
+    if (!svc?.duration_minutes) return
+    const total = startH * 60 + startM + svc.duration_minutes
+    setEndH(Math.floor(total / 60) % 24)
+    setEndM(total % 60)
+    setDurationMin(svc.duration_minutes)
+  }
 
   // Schedule availability check
   const docMid = doctorId ? parseInt(doctorId) : null
@@ -680,11 +729,15 @@ function NewApptModal({
             label="Услуга"
             placeholder="— не выбрана —"
             value={serviceId}
-            onChange={setServiceId}
-            options={services.map((s) => ({
+            onChange={handleServiceChange}
+            options={filteredServices.map((s) => ({
               value: String(s.id),
               label: s.title,
-              sub: s.price ? `${s.price} ₸` : undefined,
+              sub: s.price != null && s.price > 0
+                ? `${s.price.toLocaleString('ru-RU')} ₸ · ${s.duration_minutes} мин`
+                : s.price === 0
+                ? `Бесплатно · ${s.duration_minutes} мин`
+                : s.duration_minutes ? `${s.duration_minutes} мин` : undefined,
             }))}
           />
           <div className="grid grid-cols-2 gap-3">
@@ -1003,6 +1056,7 @@ export function ClinicCalendarPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [employees, setEmployees] = useState<ClinicMembership[]>([])
   const [services, setServices] = useState<ClinicService[]>([])
+  const [departments, setDepartments] = useState<ClinicDepartment[]>([])
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -1018,13 +1072,15 @@ export function ClinicCalendarPage() {
       listClinicPatients(clinicId).then((r) => r.data),
       listClinicEmployees(clinicId).then((r) => r.data),
       listClinicServices(clinicId).then((r) => r.data),
+      listClinicDepartments(clinicId).then((r) => r.data).catch(() => [] as ClinicDepartment[]),
       listCrmAppointments(clinicId).then((r) => r.data).catch(() => [] as CrmAppointment[]),
       listScheduleSlots(clinicId).then((r) => r.data).catch(() => [] as ScheduleSlot[]),
     ])
-      .then(([appts, pats, emps, svcs, crmAppts, slots]) => {
+      .then(([appts, pats, emps, svcs, depts, crmAppts, slots]) => {
         setPatients(pats)
         setEmployees(emps)
         setServices(svcs)
+        setDepartments(depts)
         setScheduleSlots(slots)
         const clinic = appts.map((a) => transformAppt(a, pats, emps, svcs))
         const crm = crmAppts.map((a) => transformCrmAppt(a, emps))
@@ -1306,6 +1362,7 @@ export function ClinicCalendarPage() {
           patients={patients}
           employees={employees}
           services={services}
+          departments={departments}
           scheduleSlots={scheduleSlots}
           lockedDoctorId={!isManager ? myMembership?.id : null}
           onClose={() => setShowModal(false)}

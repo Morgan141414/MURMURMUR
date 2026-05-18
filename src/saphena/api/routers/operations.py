@@ -19,6 +19,7 @@ from saphena.api.schemas import (
     ClinicRoomRead,
     ClinicServiceCreate,
     ClinicServiceRead,
+    ClinicServiceUpdate,
     DoctorScheduleSlotCreate,
     DoctorScheduleSlotRead,
     DoctorScheduleSlotUpdate,
@@ -381,6 +382,33 @@ def create_clinic_service(
     audit(
         db,
         action="clinic_service.create",
+        entity_type="clinic_service",
+        actor=current_account,
+        clinic_id=clinic_id,
+        entity_id=item.id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/clinics/{clinic_id}/services/{service_id}", response_model=ClinicServiceRead)
+def update_clinic_service(
+    clinic_id: int,
+    service_id: int,
+    payload: ClinicServiceUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ClinicService:
+    _ensure_clinic_structure_access(db, current_account, clinic_id, write=True)
+    item = db.get(ClinicService, service_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    audit(
+        db,
+        action="clinic_service.update",
         entity_type="clinic_service",
         actor=current_account,
         clinic_id=clinic_id,

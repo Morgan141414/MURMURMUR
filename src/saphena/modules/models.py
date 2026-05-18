@@ -155,6 +155,9 @@ class ClinicService(Base, TimestampMixin):
     department_id: Mapped[int | None] = mapped_column(
         ForeignKey("clinic_departments.id"), default=None, index=True
     )
+    doctor_membership_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clinic_memberships.id"), default=None, index=True
+    )
     code: Mapped[str] = mapped_column(String(80))
     title: Mapped[str] = mapped_column(String(255))
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
