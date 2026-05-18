@@ -513,6 +513,46 @@ class DoctorScheduleSlotRead(BaseModel):
     note: str | None = None
 
 
+class ScheduleTemplateRuleCreate(BaseModel):
+    weekday: int  # 0=Mon … 6=Sun
+    start_time: str  # "HH:MM"
+    end_time: str    # "HH:MM"
+    room_id: int | None = None
+    service_id: int | None = None
+
+
+class ScheduleTemplateRuleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    weekday: int
+    start_time: str
+    end_time: str
+    room_id: int | None = None
+    service_id: int | None = None
+
+
+class ScheduleTemplateCreate(BaseModel):
+    doctor_membership_id: int
+    name: str
+    rules: list[ScheduleTemplateRuleCreate]
+
+
+class ScheduleTemplateUpdate(BaseModel):
+    name: str | None = None
+    rules: list[ScheduleTemplateRuleCreate] | None = None
+
+
+class ScheduleTemplateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinic_id: int
+    doctor_membership_id: int
+    name: str
+    rules: list[ScheduleTemplateRuleRead]
+
+
 class MedicalRecordEntryCreate(BaseModel):
     patient_profile_id: int
     author_membership_id: int | None = None

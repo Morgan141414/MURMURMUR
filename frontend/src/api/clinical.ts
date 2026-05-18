@@ -344,6 +344,54 @@ export function listScheduleSlots(clinicId: number) {
   return api.get<ScheduleSlot[]>(`/clinics/${clinicId}/schedule/slots`)
 }
 
+export interface ScheduleTemplateRule {
+  id: number
+  weekday: number
+  start_time: string
+  end_time: string
+  room_id: number | null
+  service_id: number | null
+}
+
+export interface ScheduleTemplate {
+  id: number
+  clinic_id: number
+  doctor_membership_id: number
+  name: string
+  rules: ScheduleTemplateRule[]
+}
+
+export interface ScheduleTemplateRulePayload {
+  weekday: number
+  start_time: string
+  end_time: string
+  room_id?: number | null
+  service_id?: number | null
+}
+
+export interface ScheduleTemplatePayload {
+  doctor_membership_id: number
+  name: string
+  rules: ScheduleTemplateRulePayload[]
+}
+
+export function listScheduleTemplates(clinicId: number, doctorMembershipId?: number) {
+  const params = doctorMembershipId ? `?doctor_membership_id=${doctorMembershipId}` : ''
+  return api.get<ScheduleTemplate[]>(`/clinics/${clinicId}/schedule/templates${params}`)
+}
+
+export function createScheduleTemplate(clinicId: number, payload: ScheduleTemplatePayload) {
+  return api.post<ScheduleTemplate>(`/clinics/${clinicId}/schedule/templates`, payload)
+}
+
+export function updateScheduleTemplate(clinicId: number, templateId: number, payload: Partial<ScheduleTemplatePayload>) {
+  return api.put<ScheduleTemplate>(`/clinics/${clinicId}/schedule/templates/${templateId}`, payload)
+}
+
+export function deleteScheduleTemplate(clinicId: number, templateId: number) {
+  return api.delete(`/clinics/${clinicId}/schedule/templates/${templateId}`)
+}
+
 export function createMedicalRecord(clinicId: number, payload: MedicalRecordCreatePayload) {
   return api.post<MedicalRecordEntry>(`/clinics/${clinicId}/medical-records`, payload)
 }

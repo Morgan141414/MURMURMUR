@@ -36,6 +36,9 @@ from saphena.api.schemas import (
     PatientCreate,
     PatientRead,
     ScheduleSlotRead,
+    ScheduleTemplateCreate,
+    ScheduleTemplateRead,
+    ScheduleTemplateUpdate,
     SupportMessageCreate,
     SupportMessageRead,
     SupportTicketCreate,
@@ -70,6 +73,8 @@ from saphena.modules.models import (
     PatientProfile,
     Person,
     ScheduleSlot,
+    ScheduleTemplate,
+    ScheduleTemplateRule,
     SupportMessage,
     SupportTicket,
     SupportThread,
@@ -527,6 +532,17 @@ def _is_own_clinic_slot(
     return own is not None and own.id == doctor_membership_id
 
 
+def _is_clinic_member(db: DbSession, *, account_id: int, clinic_id: int) -> bool:
+    """Return True if account_id has any active membership in clinic_id."""
+    return db.scalar(
+        select(ClinicMembership).where(
+            ClinicMembership.account_id == account_id,
+            ClinicMembership.clinic_id == clinic_id,
+            ClinicMembership.is_active.is_(True),
+        )
+    ) is not None
+
+
 def _ensure_doctor_membership(
     db: DbSession, *, clinic_id: int, doctor_membership_id: int
 ) -> ClinicMembership:
@@ -872,6 +888,145 @@ def delete_doctor_schedule_slot(
         entity_id=item.id,
     )
     db.delete(item)
+    db.commit()
+
+
+@router.get(
+    "/clinics/{clinic_id}/schedule/templates",
+    response_model=list[ScheduleTemplateRead],
+)
+def list_schedule_templates(
+    clinic_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+    doctor_membership_id: int | None = None,
+) -> list[ScheduleTemplate]:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_clinic_member(db, account_id=current_account.id, clinic_id=clinic_id)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    stmt = select(ScheduleTemplate).where(ScheduleTemplate.clinic_id == clinic_id)
+    if doctor_membership_id is not None:
+        stmt = stmt.where(ScheduleTemplate.doctor_membership_id == doctor_membership_id)
+    stmt = stmt.order_by(ScheduleTemplate.id.asc())
+    return list(db.scalars(stmt).all())
+
+
+@router.post(
+    "/clinics/{clinic_id}/schedule/templates",
+    response_model=ScheduleTemplateRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_schedule_template(
+    clinic_id: int,
+    payload: ScheduleTemplateCreate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ScheduleTemplate:
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=payload.doctor_membership_id,
+        )
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    tmpl = ScheduleTemplate(
+        clinic_id=clinic_id,
+        doctor_membership_id=payload.doctor_membership_id,
+        name=payload.name,
+    )
+    db.add(tmpl)
+    db.flush()
+    for r in payload.rules:
+        db.add(ScheduleTemplateRule(
+            template_id=tmpl.id,
+            weekday=r.weekday,
+            start_time=r.start_time,
+            end_time=r.end_time,
+            room_id=r.room_id,
+            service_id=r.service_id,
+        ))
+    db.commit()
+    db.refresh(tmpl)
+    return tmpl
+
+
+@router.put(
+    "/clinics/{clinic_id}/schedule/templates/{template_id}",
+    response_model=ScheduleTemplateRead,
+)
+def update_schedule_template(
+    clinic_id: int,
+    template_id: int,
+    payload: ScheduleTemplateUpdate,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> ScheduleTemplate:
+    tmpl = db.get(ScheduleTemplate, template_id)
+    if tmpl is None or tmpl.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=tmpl.doctor_membership_id,
+        )
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    if payload.name is not None:
+        tmpl.name = payload.name
+    if payload.rules is not None:
+        for rule in list(tmpl.rules):
+            db.delete(rule)
+        db.flush()
+        for r in payload.rules:
+            db.add(ScheduleTemplateRule(
+                template_id=tmpl.id,
+                weekday=r.weekday,
+                start_time=r.start_time,
+                end_time=r.end_time,
+                room_id=r.room_id,
+                service_id=r.service_id,
+            ))
+    db.commit()
+    db.refresh(tmpl)
+    return tmpl
+
+
+@router.delete(
+    "/clinics/{clinic_id}/schedule/templates/{template_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_schedule_template(
+    clinic_id: int,
+    template_id: int,
+    db: DbSession,
+    current_account: CurrentAccount,
+) -> None:
+    tmpl = db.get(ScheduleTemplate, template_id)
+    if tmpl is None or tmpl.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if not (
+        current_account.is_superuser
+        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=tmpl.doctor_membership_id,
+        )
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    db.delete(tmpl)
     db.commit()
 
 

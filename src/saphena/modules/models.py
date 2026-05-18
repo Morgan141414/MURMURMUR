@@ -265,6 +265,33 @@ class ScheduleSlot(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, default=None)
 
 
+class ScheduleTemplate(Base, TimestampMixin):
+    __tablename__ = "schedule_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), index=True)
+    doctor_membership_id: Mapped[int] = mapped_column(ForeignKey("clinic_memberships.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+
+    rules: Mapped[list["ScheduleTemplateRule"]] = relationship(
+        "ScheduleTemplateRule", back_populates="template", cascade="all, delete-orphan"
+    )
+
+
+class ScheduleTemplateRule(Base):
+    __tablename__ = "schedule_template_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("schedule_templates.id"), index=True)
+    weekday: Mapped[int] = mapped_column(Integer)  # 0=Mon … 6=Sun
+    start_time: Mapped[str] = mapped_column(String(5))  # "HH:MM"
+    end_time: Mapped[str] = mapped_column(String(5))    # "HH:MM"
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_rooms.id"), default=None)
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("clinic_services.id"), default=None)
+
+    template: Mapped["ScheduleTemplate"] = relationship("ScheduleTemplate", back_populates="rules")
+
+
 class MedicalRecordEntry(Base, TimestampMixin):
     __tablename__ = "medical_record_entries"
 
