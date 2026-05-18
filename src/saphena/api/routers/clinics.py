@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from saphena.api.deps import CurrentAccount, DbSession
+from saphena.api.deps import CurrentAccount, CurrentAccountOptional, DbSession
+from saphena.core.config import get_settings
 from saphena.api.schemas import (
     ClinicApplicationCreate,
     ClinicApplicationModerate,
@@ -206,14 +207,22 @@ def list_clinics(db: DbSession, current_account: CurrentAccount) -> list[Clinic]
 
 @router.get("/{clinic_id}/employees", response_model=list[MembershipRead])
 def list_employees(
-    clinic_id: int, db: DbSession, current_account: CurrentAccount
+    clinic_id: int,
+    db: DbSession,
+    current_account: CurrentAccountOptional,
+    x_service_key: str | None = Header(default=None),
 ) -> list[ClinicMembership]:
-    if not (
-        current_account.is_superuser
-        or has_permission(db, current_account, PermissionCode.employee_manage, clinic_id)
-        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing clinic rights")
+    cfg = get_settings()
+    _service_ok = bool(cfg.service_api_key and x_service_key and x_service_key == cfg.service_api_key)
+    if not _service_ok:
+        if current_account is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+        if not (
+            current_account.is_superuser
+            or has_permission(db, current_account, PermissionCode.employee_manage, clinic_id)
+            or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing clinic rights")
     memberships = list(
         db.scalars(
             select(ClinicMembership)

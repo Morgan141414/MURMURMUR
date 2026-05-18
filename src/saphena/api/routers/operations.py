@@ -1,10 +1,11 @@
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status
 from sqlalchemy import select
 
-from saphena.api.deps import CurrentAccount, DbSession
+from saphena.api.deps import CurrentAccount, CurrentAccountOptional, DbSession
+from saphena.core.config import get_settings
 from saphena.api.routers import google_calendar as _gcal  # noqa: E402
 from saphena.api.schemas import (
     AppointmentCreate,
@@ -512,6 +513,20 @@ def _ensure_patient_attached(db: DbSession, *, clinic_id: int, patient_profile_i
         )
 
 
+def _is_own_clinic_slot(
+    db: DbSession, *, account_id: int, clinic_id: int, doctor_membership_id: int
+) -> bool:
+    """Return True if account_id's own membership in clinic_id matches doctor_membership_id."""
+    own = db.scalar(
+        select(ClinicMembership).where(
+            ClinicMembership.account_id == account_id,
+            ClinicMembership.clinic_id == clinic_id,
+            ClinicMembership.is_active.is_(True),
+        )
+    )
+    return own is not None and own.id == doctor_membership_id
+
+
 def _ensure_doctor_membership(
     db: DbSession, *, clinic_id: int, doctor_membership_id: int
 ) -> ClinicMembership:
@@ -657,20 +672,26 @@ def list_appointments(
 def list_doctor_schedule_slots(
     clinic_id: int,
     db: DbSession,
-    current_account: CurrentAccount,
+    current_account: CurrentAccountOptional,
     starts_at: datetime | None = None,
     ends_at: datetime | None = None,
+    x_service_key: str | None = Header(default=None),
 ) -> list[ScheduleSlot]:
-    if not (
-        current_account.is_superuser
-        or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
-        or has_permission(db, current_account, PermissionCode.appointment_manage, clinic_id)
-        or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Missing schedule access",
-        )
+    cfg = get_settings()
+    _service_ok = bool(cfg.service_api_key and x_service_key and x_service_key == cfg.service_api_key)
+    if not _service_ok:
+        if current_account is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+        if not (
+            current_account.is_superuser
+            or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+            or has_permission(db, current_account, PermissionCode.appointment_manage, clinic_id)
+            or has_permission(db, current_account, PermissionCode.clinic_read, clinic_id)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Missing schedule access",
+            )
     stmt = select(ScheduleSlot).where(ScheduleSlot.clinic_id == clinic_id)
     if starts_at is not None:
         stmt = stmt.where(ScheduleSlot.ends_at >= starts_at)
@@ -694,6 +715,12 @@ def create_doctor_schedule_slot(
     if not (
         current_account.is_superuser
         or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=payload.doctor_membership_id,
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -751,17 +778,23 @@ def update_doctor_schedule_slot(
     db: DbSession,
     current_account: CurrentAccount,
 ) -> ScheduleSlot:
+    item = db.get(ScheduleSlot, slot_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
     if not (
         current_account.is_superuser
         or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=item.doctor_membership_id,
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing schedule rights",
         )
-    item = db.get(ScheduleSlot, slot_id)
-    if item is None or item.clinic_id != clinic_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
     starts_at = payload.starts_at or item.starts_at
     ends_at = payload.ends_at or item.ends_at
     if ends_at <= starts_at:
@@ -813,17 +846,23 @@ def delete_doctor_schedule_slot(
     db: DbSession,
     current_account: CurrentAccount,
 ) -> None:
+    item = db.get(ScheduleSlot, slot_id)
+    if item is None or item.clinic_id != clinic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
     if not (
         current_account.is_superuser
         or has_permission(db, current_account, PermissionCode.schedule_manage, clinic_id)
+        or _is_own_clinic_slot(
+            db,
+            account_id=current_account.id,
+            clinic_id=clinic_id,
+            doctor_membership_id=item.doctor_membership_id,
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing schedule rights",
         )
-    item = db.get(ScheduleSlot, slot_id)
-    if item is None or item.clinic_id != clinic_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule slot not found")
     audit(
         db,
         action="schedule_slot.delete",
@@ -868,6 +907,21 @@ async def create_appointment(
     _ensure_service(db, clinic_id=clinic_id, service_id=payload.service_id)
 
     if payload.doctor_membership_id is not None:
+        # Validate appointment falls within an available schedule slot
+        covering_slot = _find_covering_schedule_slot(
+            db,
+            clinic_id=clinic_id,
+            doctor_membership_id=payload.doctor_membership_id,
+            starts_at=payload.starts_at,
+            ends_at=payload.ends_at,
+            status=ScheduleSlotStatus.available,
+        )
+        if covering_slot is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Врач недоступен в указанное время (нет свободного слота)",
+            )
+        # Check no overlapping appointments
         overlap_stmt = select(Appointment).where(
             Appointment.clinic_id == clinic_id,
             Appointment.doctor_membership_id == payload.doctor_membership_id,
@@ -907,14 +961,6 @@ async def create_appointment(
     )
     db.add(item)
     db.flush()
-    _sync_schedule_slot_for_appointment(
-        db,
-        clinic_id=clinic_id,
-        doctor_membership_id=payload.doctor_membership_id,
-        starts_at=payload.starts_at,
-        ends_at=payload.ends_at,
-        appointment_status=item.status,
-    )
     _notify_appointment_participants(
         db,
         appointment=item,
@@ -1048,34 +1094,25 @@ async def update_appointment(
                 detail="Appointment overlaps existing room slot",
             )
 
-    if (
-        previous_doctor_membership_id is not None
-        and previous_status
-        not in {
-            AppointmentStatus.canceled,
-            AppointmentStatus.no_show,
-            AppointmentStatus.rescheduled,
-        }
-        and (
-            previous_starts_at != starts_at
-            or previous_ends_at != ends_at
-            or previous_doctor_membership_id != next_doctor_membership_id
-            or next_status
-            in {
-                AppointmentStatus.canceled,
-                AppointmentStatus.no_show,
-                AppointmentStatus.rescheduled,
-            }
-        )
-    ):
-        _sync_schedule_slot_for_appointment(
+    # Validate new time falls within an available slot (skip if canceling)
+    if next_doctor_membership_id is not None and next_status not in {
+        AppointmentStatus.canceled,
+        AppointmentStatus.no_show,
+        AppointmentStatus.rescheduled,
+    } and (starts_at != previous_starts_at or ends_at != previous_ends_at or next_doctor_membership_id != previous_doctor_membership_id):
+        covering_slot = _find_covering_schedule_slot(
             db,
             clinic_id=clinic_id,
-            doctor_membership_id=previous_doctor_membership_id,
-            starts_at=previous_starts_at,
-            ends_at=previous_ends_at,
-            appointment_status=AppointmentStatus.canceled,
+            doctor_membership_id=next_doctor_membership_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            status=ScheduleSlotStatus.available,
         )
+        if covering_slot is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Врач недоступен в указанное время (нет свободного слота)",
+            )
 
     item.starts_at = starts_at
     item.ends_at = ends_at
@@ -1087,14 +1124,6 @@ async def update_appointment(
         item.reason = payload.reason
 
     db.add(item)
-    _sync_schedule_slot_for_appointment(
-        db,
-        clinic_id=clinic_id,
-        doctor_membership_id=item.doctor_membership_id,
-        starts_at=item.starts_at,
-        ends_at=item.ends_at,
-        appointment_status=item.status,
-    )
     if payload.status is not None and payload.status != previous_status:
         _notify_appointment_participants(
             db,

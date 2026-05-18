@@ -14,6 +14,7 @@ import {
   Check,
   X,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -24,11 +25,13 @@ import {
   listClinicPatients,
   listClinicEmployees,
   listClinicServices,
+  listScheduleSlots,
   type Appointment as ApiAppointment,
   type CrmAppointment,
   type Patient,
   type ClinicMembership,
   type ClinicService,
+  type ScheduleSlot,
 } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -526,6 +529,7 @@ function NewApptModal({
   patients,
   employees,
   services,
+  scheduleSlots,
   lockedDoctorId,
   onClose,
   onSave,
@@ -535,6 +539,7 @@ function NewApptModal({
   patients: Patient[]
   employees: ClinicMembership[]
   services: ClinicService[]
+  scheduleSlots: ScheduleSlot[]
   lockedDoctorId?: number | null
   onClose: () => void
   onSave: (f: NewApptForm) => Promise<void>
@@ -581,6 +586,22 @@ function NewApptModal({
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Schedule availability check
+  const docMid = doctorId ? parseInt(doctorId) : null
+  const availability = useMemo(() => {
+    if (!docMid || !scheduleSlots.length) return null
+    // Build ISO start/end for the selected date + time
+    const apptStart = new Date(`${date}T${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`).getTime()
+    const apptEnd = new Date(`${date}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`).getTime()
+    return scheduleSlots.some(
+      (s) =>
+        s.doctor_membership_id === docMid &&
+        s.status === 'available' &&
+        new Date(s.starts_at).getTime() <= apptStart &&
+        new Date(s.ends_at).getTime() >= apptEnd,
+    )
+  }, [docMid, scheduleSlots, date, startH, startM, endH, endM])
 
   async function save() {
     if (!patientId) return
@@ -669,6 +690,30 @@ function NewApptModal({
             <TimePicker label="Начало" h={startH} m={startM} onChange={applyStart} />
             <TimePicker label="Конец" h={endH} m={endM} onChange={applyEnd} />
           </div>
+          {/* Schedule availability */}
+          {docMid !== null && scheduleSlots.length > 0 && (
+            <div className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]',
+              availability === null
+                ? 'bg-muted/50 text-muted-foreground'
+                : availability
+                ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                : 'bg-red-500/10 text-red-700 dark:text-red-400',
+            )}>
+              {availability === null ? (
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+              ) : availability ? (
+                <Check className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              )}
+              {availability === null
+                ? 'Расписание не загружено'
+                : availability
+                ? 'Врач доступен в это время'
+                : 'Нет доступного слота в расписании врача'}
+            </div>
+          )}
           <label className="block space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Заметки / причина</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
@@ -677,7 +722,7 @@ function NewApptModal({
         </div>
         <div className="flex items-center justify-end gap-2 pt-1">
           <button onClick={onClose} className="rounded-lg border border-border bg-card px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent">Отмена</button>
-          <button onClick={() => void save()} disabled={!patientId || saving} className="flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-[13px] font-medium text-background hover:opacity-90 disabled:opacity-40">
+          <button onClick={() => void save()} disabled={!patientId || saving || availability === false} className="flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-[13px] font-medium text-background hover:opacity-90 disabled:opacity-40">
             {saving && <Loader2 className="h-3 w-3 animate-spin" />}
             Создать запись
           </button>
@@ -957,6 +1002,7 @@ export function ClinicCalendarPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [employees, setEmployees] = useState<ClinicMembership[]>([])
   const [services, setServices] = useState<ClinicService[]>([])
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [prefillHour, setPrefillHour] = useState<number | null>(null)
@@ -972,11 +1018,13 @@ export function ClinicCalendarPage() {
       listClinicEmployees(clinicId).then((r) => r.data),
       listClinicServices(clinicId).then((r) => r.data),
       listCrmAppointments(clinicId).then((r) => r.data).catch(() => [] as CrmAppointment[]),
+      listScheduleSlots(clinicId).then((r) => r.data).catch(() => [] as ScheduleSlot[]),
     ])
-      .then(([appts, pats, emps, svcs, crmAppts]) => {
+      .then(([appts, pats, emps, svcs, crmAppts, slots]) => {
         setPatients(pats)
         setEmployees(emps)
         setServices(svcs)
+        setScheduleSlots(slots)
         const clinic = appts.map((a) => transformAppt(a, pats, emps, svcs))
         const crm = crmAppts.map((a) => transformCrmAppt(a, emps))
         setAppointments([...clinic, ...crm])
@@ -1257,6 +1305,7 @@ export function ClinicCalendarPage() {
           patients={patients}
           employees={employees}
           services={services}
+          scheduleSlots={scheduleSlots}
           lockedDoctorId={!isManager ? myMembership?.id : null}
           onClose={() => setShowModal(false)}
           onSave={handleAddAppt}

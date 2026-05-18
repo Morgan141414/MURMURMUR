@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     tetis_transition_secret: str | None = None
     qtrix_api_url: str | None = None
     qtrix_service_token: str | None = None
+    service_api_key: str | None = None
 
     google_client_id: str | None = None
     google_client_secret: str | None = None

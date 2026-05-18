@@ -37,3 +37,29 @@ def get_current_account(
 
 
 CurrentAccount = Annotated[Account, Depends(get_current_account)]
+
+
+def get_current_account_optional(
+    db: DbSession,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Account | None:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token_value = authorization.split(" ", 1)[1].strip()
+    session_token = db.scalar(
+        select(SessionToken).where(
+            SessionToken.token == token_value,
+            SessionToken.revoked_at.is_(None),
+            SessionToken.expires_at > utcnow(),
+        )
+    )
+    if session_token is None:
+        return None
+    session_token.last_seen_at = utcnow()
+    db.add(session_token)
+    db.commit()
+    db.refresh(session_token)
+    return session_token.account
+
+
+CurrentAccountOptional = Annotated[Account | None, Depends(get_current_account_optional)]
