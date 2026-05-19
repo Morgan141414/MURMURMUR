@@ -60,6 +60,7 @@ from saphena.modules.enums import (
 from saphena.modules.models import (
     Account,
     Appointment,
+    Clinic,
     ClinicBranch,
     ClinicDepartment,
     ClinicMembership,
@@ -88,6 +89,32 @@ from saphena.services.notifications import create_notification
 router = APIRouter(tags=["operations"])
 
 PLACEHOLDER_PATTERN = re.compile(r"{{\s*([a-zA-Z0-9_.-]+)\s*}}")
+
+
+@router.get("/orgs")
+def list_my_orgs(db: DbSession, current_account: CurrentAccount) -> list[dict]:
+    """Return the current user's clinic memberships in OrgWithRole format for the frontend."""
+    rows = db.execute(
+        select(Clinic, ClinicMembership.role_code)
+        .join(ClinicMembership, ClinicMembership.clinic_id == Clinic.id)
+        .where(
+            ClinicMembership.account_id == current_account.id,
+            ClinicMembership.is_active.is_(True),
+        )
+    ).all()
+    return [
+        {
+            "id": str(clinic.id),
+            "name": clinic.name,
+            "role": role_code.value,
+            "join_code": "",
+            "is_active": True,
+            "moderation_status": "approved",
+            "moderation_comment": None,
+            "logo_url": None,
+        }
+        for clinic, role_code in rows
+    ]
 
 
 def _render_template(content: str, context: dict[str, str]) -> str:
@@ -1131,6 +1158,20 @@ async def create_appointment(
                 detail="Appointment overlaps existing room slot",
             )
 
+    # Check patient is not already booked at the same time
+    patient_overlap_stmt = select(Appointment).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.patient_profile_id == payload.patient_profile_id,
+        Appointment.starts_at < payload.ends_at,
+        Appointment.ends_at > payload.starts_at,
+        Appointment.status.notin_([AppointmentStatus.canceled, AppointmentStatus.no_show]),
+    )
+    if db.scalar(patient_overlap_stmt) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Пациент уже записан в это время",
+        )
+
     item = Appointment(
         clinic_id=clinic_id,
         patient_profile_id=payload.patient_profile_id,
@@ -1275,6 +1316,21 @@ async def update_appointment(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Appointment overlaps existing room slot",
+            )
+
+    if next_status not in {AppointmentStatus.canceled, AppointmentStatus.no_show, AppointmentStatus.rescheduled}:
+        patient_overlap_stmt = select(Appointment).where(
+            Appointment.id != item.id,
+            Appointment.clinic_id == clinic_id,
+            Appointment.patient_profile_id == item.patient_profile_id,
+            Appointment.starts_at < ends_at,
+            Appointment.ends_at > starts_at,
+            Appointment.status.notin_(excluded_statuses),
+        )
+        if db.scalar(patient_overlap_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Пациент уже записан в это время",
             )
 
     # Validate new time falls within an available slot (skip if canceling)
