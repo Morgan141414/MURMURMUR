@@ -54,7 +54,6 @@ export const companyNav: NavSection[] = [
       { to: '/clinic', labelKey: 'nav.clinicCommandCenter', icon: HeartPulse, roles: clinicCareRoles },
       { to: '/clinic/calendar', labelKey: 'nav.calendar', icon: CalendarDays, roles: clinicCareRoles },
       { to: '/clinic/schedule', labelKey: 'nav.schedule', icon: LayoutList, roles: clinicCareRoles },
-      { to: '/clinic/appointments', labelKey: 'nav.appointments', icon: ClipboardCheck, roles: clinicCareRoles },
       { to: '/clinic/patients', labelKey: 'nav.patients', icon: UsersRound, roles: clinicCareRoles },
       { to: '/clinic/medical-records', labelKey: 'nav.medicalRecords', icon: HeartPulse, roles: [...clinicLeadershipRoles, 'doctor'] },
       { to: '/clinic/visits/visit-1042', labelKey: 'nav.visitWorkspace', icon: Stethoscope, roles: [...clinicLeadershipRoles, 'doctor'] },

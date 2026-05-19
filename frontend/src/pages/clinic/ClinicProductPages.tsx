@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { exportToExcel } from '@/lib/exportExcel'
 import {
   listClinicServices,
   listClinicEmployees,
@@ -289,7 +290,23 @@ export function ClinicPatientsPage() {
       eyebrow="Пациенты"
       title="Пациентская база как рабочий cockpit"
       description="Поиск, риски, долги, ближайшие приемы и быстрый переход в карту пациента. Без потерянных карточек и ручного Excel."
-      actions={<Button><Plus className="mr-2 h-4 w-4" />Новый пациент</Button>}
+      actions={(
+        <>
+          <Button variant="outline" onClick={() => exportToExcel(filtered.map((p) => ({
+            'ФИО': p.name,
+            'ИИН': p.iin,
+            'Возраст': p.age,
+            'Телефон': p.phone,
+            'Врач': p.doctor,
+            'Следующий визит': p.nextVisit,
+            'Статус': p.status,
+            'Баланс': p.balance,
+          })), 'пациенты')}>
+            <Download className="mr-2 h-4 w-4" />Excel
+          </Button>
+          <Button><Plus className="mr-2 h-4 w-4" />Новый пациент</Button>
+        </>
+      )}
     >
       <section className="clinic-os-toolbar">
         <Search className="h-4 w-4" />
@@ -525,7 +542,20 @@ export function ClinicPaymentsPage() {
       eyebrow="Касса"
       title="Оплаты и закрытие дня без ручной сверки"
       description="Администратор видит счета, долги, способы оплаты и готовность к закрытию дня по филиалу."
-      actions={<Button><ReceiptText className="mr-2 h-4 w-4" />Новый счет</Button>}
+      actions={(
+        <>
+          <Button variant="outline" onClick={() => exportToExcel(visits.map((v, i) => ({
+            'Пациент': v.patient,
+            'Услуга': v.service,
+            'Врач': v.doctor,
+            'Сумма (₸)': [18000, 24000, 32000, 15000][i],
+            'Статус': v.status,
+          })), 'платежи')}>
+            <Download className="mr-2 h-4 w-4" />Excel
+          </Button>
+          <Button><ReceiptText className="mr-2 h-4 w-4" />Новый счет</Button>
+        </>
+      )}
     >
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Оплачено сегодня" value="684 000 ₸" />
@@ -623,7 +653,19 @@ export function ClinicAnalyticsPage() {
       eyebrow="Аналитика"
       title="KPI клиники в языке управленческих решений"
       description="Не просто отчеты, а сигналы: где теряются пациенты, какие врачи перегружены, где проседает касса и что влияет на выручку."
-      actions={<Button><ChartNoAxesCombined className="mr-2 h-4 w-4" />Собрать отчет</Button>}
+      actions={(
+        <>
+          <Button variant="outline" onClick={() => exportToExcel([
+            { 'Показатель': 'Выручка месяца', 'Значение': '18 400 000 ₸' },
+            { 'Показатель': 'Повторные визиты', 'Значение': '42%' },
+            { 'Показатель': 'Конверсия записи', 'Значение': '86%' },
+            { 'Показатель': 'Потери от неявок', 'Значение': '214 000 ₸' },
+          ], 'аналитика_клиники')}>
+            <Download className="mr-2 h-4 w-4" />Excel
+          </Button>
+          <Button><ChartNoAxesCombined className="mr-2 h-4 w-4" />Собрать отчет</Button>
+        </>
+      )}
     >
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Выручка месяца" value="18.4 млн ₸" />
