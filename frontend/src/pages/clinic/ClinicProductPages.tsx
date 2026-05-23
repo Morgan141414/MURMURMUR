@@ -32,11 +32,29 @@ import { exportToExcel } from '@/lib/exportExcel'
 import {
   listClinicServices,
   listClinicEmployees,
+  listClinicPatients,
+  listAppointments,
   updateClinicService,
+  syncServicesFromCrm,
   type ClinicService,
   type ClinicMembership,
+  type Patient,
+  type Appointment,
 } from '@/api/clinical'
 import { useOrgStore } from '@/stores/orgStore'
+import {
+  cloneDocumentTemplate,
+  listDocumentFields,
+  listDocumentTemplateVersions,
+  listDocumentTemplates,
+  previewDocumentTemplate,
+  saveDocumentTemplate,
+  updateDocumentTemplate,
+  validateDocumentTemplate,
+  type DocumentFieldItem,
+  type DocumentTemplateItem,
+  type DocumentTemplateVersionItem,
+} from '@/api/documentTemplates'
 
 type PatientStatus = 'ready' | 'risk' | 'debt' | 'new'
 type VisitStatus = 'waiting' | 'confirmed' | 'arrived' | 'in-progress' | 'done' | 'payment' | 'canceled' | 'no-show'
@@ -184,18 +202,75 @@ function StatusPill({ status }: { status: PatientStatus | VisitStatus }) {
   )
 }
 
-function PatientRow({ patient }: { patient: (typeof patients)[number] }) {
+type PatientListItem = {
+  id: number | string
+  name: string
+  iin: string
+  ageLabel: string
+  phone: string
+  nextVisit: string
+  status: PatientStatus
+  note?: string
+}
+
+function patientFullName(patient: Patient | null | undefined) {
+  if (!patient) return 'Пациент не выбран'
+  return [patient.person.last_name, patient.person.first_name, patient.person.middle_name].filter(Boolean).join(' ')
+}
+
+function patientInitials(name: string) {
+  return name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2) || 'П'
+}
+
+function ageFromIin(iin?: string | null) {
+  if (!iin || iin.length < 6) return null
+  const year = Number(iin.slice(0, 2))
+  const month = Number(iin.slice(2, 4))
+  const day = Number(iin.slice(4, 6))
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  const century = year > 26 ? 1900 : 2000
+  const birth = new Date(century + year, month - 1, day)
+  if (Number.isNaN(birth.getTime())) return null
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const beforeBirthday = now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())
+  if (beforeBirthday) age -= 1
+  return age >= 0 && age < 130 ? age : null
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Дата не указана'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Дата не указана'
+  return date.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function appointmentStatusToVisitStatus(status?: string | null): VisitStatus {
+  const map: Record<string, VisitStatus> = {
+    scheduled: 'waiting',
+    started: 'in-progress',
+    in_progress: 'in-progress',
+    completed: 'done',
+    done: 'done',
+    canceled: 'canceled',
+    no_show: 'no-show',
+  }
+  return map[String(status ?? '').toLowerCase()] ?? 'waiting'
+}
+
+function PatientRow({ patient }: { patient: PatientListItem }) {
   return (
     <Link
       to={`/clinic/patients/${patient.id}`}
       className="group flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3 transition-all hover:bg-surface-hover hover:border-border-hover"
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[12px] font-bold text-primary">
-        {patient.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+        {patientInitials(patient.name)}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-medium text-foreground">{patient.name}</p>
-        <p className="text-[11px] text-text-tertiary">{patient.iin} · {patient.age} лет · {patient.phone}</p>
+        <p className="text-[11px] text-text-tertiary">{patient.iin} · {patient.ageLabel} · {patient.phone || 'телефон не указан'}</p>
+        {patient.note ? <p className="mt-1 truncate text-[11px] text-text-secondary">{patient.note}</p> : null}
       </div>
       <span className="hidden text-[12px] text-text-secondary sm:block">{patient.nextVisit}</span>
       <StatusPill status={patient.status} />
@@ -278,42 +353,88 @@ export function ClinicDashboardPage() {
 }
 
 export function ClinicPatientsPage() {
+  const activeOrgId = useOrgStore((state) => state.activeOrgId)
+  const clinicId = useMemo(() => {
+    const parsed = Number(activeOrgId)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+  }, [activeOrgId])
   const [query, setQuery] = useState('')
+  const [realPatients, setRealPatients] = useState<Patient[]>([])
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadPatients() {
+      setLoading(true)
+      setError('')
+      try {
+        const [patientsResponse, appointmentsResponse] = await Promise.all([
+          listClinicPatients(clinicId),
+          listAppointments(clinicId),
+        ])
+        if (cancelled) return
+        setRealPatients(patientsResponse.data)
+        setAppointments(appointmentsResponse.data)
+      } catch {
+        if (!cancelled) setError('Не удалось загрузить пациентов')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void loadPatients()
+    return () => { cancelled = true }
+  }, [clinicId])
+
+  const patientRows = useMemo<PatientListItem[]>(() => realPatients.map((patient) => {
+    const name = patientFullName(patient)
+    const age = ageFromIin(patient.person.iin)
+    const patientAppointments = appointments
+      .filter((appointment) => appointment.patient_profile_id === patient.id)
+      .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())
+    const upcoming = patientAppointments.find((appointment) => new Date(appointment.starts_at).getTime() >= Date.now())
+    const last = patientAppointments.at(-1)
+    const status: PatientStatus = patient.notes?.toLowerCase().includes('аллерг') ? 'risk' : patientAppointments.length ? 'ready' : 'new'
+    return {
+      id: patient.id,
+      name,
+      iin: patient.person.iin || 'ИИН не указан',
+      ageLabel: age ? `${age} лет` : 'возраст не указан',
+      phone: patient.person.phone ?? '',
+      nextVisit: upcoming ? formatDateTime(upcoming.starts_at) : last ? `Последний: ${formatDateTime(last.starts_at)}` : 'Нет записей',
+      status,
+      note: patient.notes ?? undefined,
+    }
+  }), [realPatients, appointments])
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    if (!normalized) return patients
-    return patients.filter((patient) => `${patient.name} ${patient.iin} ${patient.phone}`.toLowerCase().includes(normalized))
-  }, [query])
+    if (!normalized) return patientRows
+    return patientRows.filter((patient) => `${patient.name} ${patient.iin} ${patient.phone} ${patient.note ?? ''}`.toLowerCase().includes(normalized))
+  }, [query, patientRows])
 
   return (
     <ClinicShell
-      eyebrow="Пациенты"
-      title="Пациентская база как рабочий cockpit"
-      description="Поиск, риски, долги, ближайшие приемы и быстрый переход в карту пациента. Без потерянных карточек и ручного Excel."
-      actions={(
-        <>
-          <Button variant="outline" onClick={() => exportToExcel(filtered.map((p) => ({
-            'ФИО': p.name,
-            'ИИН': p.iin,
-            'Возраст': p.age,
-            'Телефон': p.phone,
-            'Врач': p.doctor,
-            'Следующий визит': p.nextVisit,
-            'Статус': p.status,
-            'Баланс': p.balance,
-          })), 'пациенты')}>
-            <Download className="mr-2 h-4 w-4" />Excel
-          </Button>
-          <Button><Plus className="mr-2 h-4 w-4" />Новый пациент</Button>
-        </>
-      )}
+      eyebrow=""
+      title="Пациенты"
+      description=""
+      actions={<Button><Plus className="mr-2 h-4 w-4" />Новый пациент</Button>}
     >
       <section className="clinic-os-toolbar">
         <Search className="h-4 w-4" />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по ФИО, ИИН или телефону" />
       </section>
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Metric label="Всего пациентов" value={String(patientRows.length)} />
+        <Metric label="С записью" value={String(patientRows.filter((patient) => patient.nextVisit !== 'Нет записей').length)} tone="blue" />
+        <Metric label="Требуют внимания" value={String(patientRows.filter((patient) => patient.status === 'risk').length)} tone="amber" />
+      </section>
       <section className="mis-card rounded-xl p-5">
+        {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
         <div className="clinic-os-patient-list">
+          {loading ? <p className="text-sm text-text-secondary">Загрузка пациентов...</p> : null}
+          {!loading && filtered.length === 0 ? <p className="text-sm text-text-secondary">Пациенты не найдены.</p> : null}
           {filtered.map((patient) => <PatientRow key={patient.id} patient={patient} />)}
         </div>
       </section>
@@ -576,74 +697,466 @@ export function ClinicPaymentsPage() {
   )
 }
 
+function fieldGroups(fields: DocumentFieldItem[]) {
+  return fields.reduce<Record<string, DocumentFieldItem[]>>((acc, field) => {
+    const key = field.category || 'Другое'
+    acc[key] = acc[key] ?? []
+    acc[key].push(field)
+    return acc
+  }, {})
+}
+
+function templateCode(title: string) {
+  const base = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 44)
+  return `${base || 'medical_template'}_${Date.now().toString(36)}`.slice(0, 80)
+}
+
+const templateStarter = `Пациент: «Фамилия пациента» «Имя пациента»
+Дата приема: «Дата приема»
+Врач: «Врач»
+Диагноз: «Диагноз»
+Жалобы: «Жалобы»
+Рекомендации: «Рекомендации»`
+
+const templateBlocks = [
+  { title: 'Паспорт приема', description: 'Пациент, дата и врач', body: `Пациент: «Фамилия пациента» «Имя пациента» «Отчество пациента»
+ИИН: «ИИН пациента»
+Дата приема: «Дата приема»
+Врач: «Врач»` },
+  { title: 'Клинический блок', description: 'Жалобы, анамнез, осмотр', body: `Жалобы:
+«Жалобы»
+
+Анамнез:
+«Анамнез»
+
+Объективный осмотр:
+«Объективный осмотр»` },
+  { title: 'Диагноз и план', description: 'Итог приема и назначения', body: `Диагноз:
+«Диагноз»
+
+Назначения:
+«Назначения»
+
+Рекомендации:
+«Рекомендации»` },
+  { title: 'Контроль', description: 'Заключение и повторный прием', body: `Заключение:
+«Заключение»
+
+Контрольный прием:
+«Дата контроля»` },
+]
+
 export function ClinicDocumentsPage() {
-  const [activeTemplate, setActiveTemplate] = useState(templates[0])
-  const variables = ['{{patient.fullName}}', '{{doctor.name}}', '{{visit.date}}', '{{diagnosis}}', '{{recommendations}}']
-  const missingData = activeTemplate.state === 'Нужна проверка'
-    ? ['Не указан диагноз', 'Нет рекомендаций после приема']
-    : []
+  const activeOrgId = useOrgStore((state) => state.activeOrgId)
+  const clinicId = useMemo(() => {
+    const parsed = Number(activeOrgId)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+  }, [activeOrgId])
+  const [templatesList, setTemplatesList] = useState<DocumentTemplateItem[]>([])
+  const [fields, setFields] = useState<DocumentFieldItem[]>([])
+  const [versions, setVersions] = useState<DocumentTemplateVersionItem[]>([])
+  const [activeId, setActiveId] = useState<number | null>(null)
+  const [title, setTitle] = useState('Новый медицинский шаблон')
+  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('protocol')
+  const [status, setStatus] = useState<'draft' | 'active' | 'archived'>('active')
+  const [body, setBody] = useState(templateStarter)
+  const [preview, setPreview] = useState('')
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [unknownFields, setUnknownFields] = useState<string[]>([])
+  const [missingFields, setMissingFields] = useState<string[]>([])
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const groupedFields = useMemo(() => fieldGroups(fields), [fields])
+  const usedFieldLabels = useMemo(() => Array.from(new Set(Array.from(body.matchAll(/«([^»]+)»/g)).map((match) => match[1].trim()).filter(Boolean))), [body])
+  const documentSections = useMemo(() => body.split(/\n(?=[А-ЯЁA-Z][^\n]{2,60}:)/).map((section) => section.trim()).filter(Boolean), [body])
+  const filteredTemplates = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return templatesList
+    return templatesList.filter((item) => `${item.title} ${item.body}`.toLowerCase().includes(needle))
+  }, [templatesList, query])
+  const activeTemplate = templatesList.find((item) => item.id === activeId) ?? null
+  const statusStats = useMemo(() => ({
+    active: templatesList.filter((item) => item.status === 'active').length,
+    draft: templatesList.filter((item) => item.status === 'draft').length,
+    archived: templatesList.filter((item) => item.status === 'archived').length,
+  }), [templatesList])
+  const readyToSave = title.trim().length > 0 && body.trim().length > 0
+
+  async function loadTemplateData(nextActiveId?: number | null) {
+    setLoading(true)
+    setError('')
+    try {
+      const [templatesResponse, fieldsResponse] = await Promise.all([
+        listDocumentTemplates(clinicId, true),
+        listDocumentFields(clinicId),
+      ])
+      setTemplatesList(templatesResponse.data)
+      setFields(fieldsResponse.data)
+      const selected = nextActiveId
+        ? templatesResponse.data.find((item) => item.id === nextActiveId)
+        : templatesResponse.data[0]
+      if (selected) {
+        selectTemplate(selected, false)
+        void loadVersions(selected.id)
+      } else {
+        setVersions([])
+      }
+    } catch {
+      setError('Не удалось загрузить шаблоны документов')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadTemplateData()
+  }, [clinicId])
+
+  async function loadVersions(templateId: number) {
+    try {
+      const response = await listDocumentTemplateVersions(clinicId, templateId)
+      setVersions(response.data)
+    } catch {
+      setVersions([])
+    }
+  }
+
+  function selectTemplate(template: DocumentTemplateItem, clearPreview = true) {
+    setActiveId(template.id)
+    void loadVersions(template.id)
+    setTitle(template.title)
+    setDescription(template.description ?? '')
+    setCategory(template.category || 'protocol')
+    setStatus(template.status || 'active')
+    setBody(template.body)
+    setUnknownFields([])
+    setWarnings([])
+    setMissingFields([])
+    if (clearPreview) setPreview('')
+  }
+
+  function createBlankTemplate() {
+    setActiveId(null)
+    setTitle('Новый медицинский шаблон')
+    setDescription('')
+    setCategory('protocol')
+    setStatus('active')
+    setBody(templateStarter)
+    setPreview('')
+    setWarnings([])
+    setUnknownFields([])
+    setMissingFields([])
+    setVersions([])
+  }
+
+  function insertField(field: DocumentFieldItem) {
+    const marker = `«${field.label}»`
+    setBody((current) => `${current}${current.endsWith(' ') || current.endsWith('\n') ? '' : ' '}${marker}`)
+  }
+
+  function insertTemplateBlock(blockBody: string) {
+    setBody((current) => `${current.trim()}${current.trim() ? '\n\n' : ''}${blockBody}`)
+  }
+
+  function replaceWithClinicalStructure() {
+    setBody(templateBlocks.map((block) => block.body).join('\n\n'))
+  }
+
+  async function checkTemplate() {
+    setError('')
+    try {
+      const response = await validateDocumentTemplate(clinicId, body)
+      setWarnings(response.data.warnings)
+      setUnknownFields(response.data.unknown_fields)
+      setMissingFields([])
+    } catch {
+      setError('Не удалось проверить шаблон')
+    }
+  }
+
+  async function buildPreview() {
+    setError('')
+    try {
+      const response = await previewDocumentTemplate(clinicId, { body })
+      setPreview(response.data.body)
+      setWarnings(response.data.warnings)
+      setMissingFields(response.data.missing_fields)
+    } catch {
+      setError('Не удалось построить предпросмотр')
+    }
+  }
+
+  async function saveTemplate() {
+    if (!readyToSave) return
+    setSaving(true)
+    setError('')
+    try {
+      const validation = await validateDocumentTemplate(clinicId, body)
+      if (!validation.data.is_valid) {
+        setUnknownFields(validation.data.unknown_fields)
+        setWarnings(validation.data.warnings)
+        setError(`Неизвестные поля: ${validation.data.unknown_fields.join(', ')}`)
+        return
+      }
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        category,
+        language: 'ru',
+        status,
+        body: body.trim(),
+      }
+      const response = activeId
+        ? await updateDocumentTemplate(clinicId, activeId, payload)
+        : await saveDocumentTemplate(clinicId, { ...payload, code: templateCode(title) })
+      await loadTemplateData(response.data.id)
+      setPreview('')
+    } catch {
+      setError('Не удалось сохранить шаблон')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function copyTemplate() {
+    if (!activeId) return
+    setSaving(true)
+    setError('')
+    try {
+      const response = await cloneDocumentTemplate(clinicId, activeId)
+      await loadTemplateData(response.data.id)
+    } catch {
+      setError('Не удалось создать копию шаблона')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveTemplate() {
+    if (!activeId) return
+    setSaving(true)
+    setError('')
+    try {
+      await updateDocumentTemplate(clinicId, activeId, { status: 'archived' })
+      await loadTemplateData(null)
+    } catch {
+      setError('Не удалось архивировать шаблон')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <ClinicShell
-      eyebrow="Документы"
-      title="Шаблонизатор медицинских документов"
-      description="Не textarea с кодом, а библиотека шаблонов с переменными, preview, ролями и выпуском документа из приема."
-      actions={<Button><FileText className="mr-2 h-4 w-4" />Создать шаблон</Button>}
-    >
-      <section className="clinic-os-template-builder">
-        <aside className="mis-card rounded-xl p-5">
-          <div className="clinic-os-panel-head"><div><span>Библиотека</span><h2>Шаблоны</h2></div></div>
-          {templates.map((template) => (
-            <button
-              key={template.title}
-              className={cn('clinic-os-template-item', activeTemplate.title === template.title && 'is-active')}
-              onClick={() => setActiveTemplate(template)}
-            >
-              <strong>{template.title}</strong>
-              <span>{template.specialty} · {template.usage}</span>
+    <div className="mis-workspace space-y-5">
+      <div className="flex justify-end">
+        <Button type="button" onClick={createBlankTemplate}>
+          <Plus className="mr-2 h-4 w-4" />Новый шаблон
+        </Button>
+      </div>
+      <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+        <aside className="mis-card rounded-xl p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase text-text-tertiary">Библиотека</p>
+              <h2 className="text-base font-semibold text-foreground">{templatesList.length} шаблонов</h2>
+              <p className="mt-1 text-[11px] text-text-tertiary">{statusStats.active} активных · {statusStats.draft} черновиков · {statusStats.archived} в архиве</p>
+            </div>
+            <button type="button" onClick={() => void loadTemplateData(activeId)} className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-hover">
+              Обновить
             </button>
-          ))}
+          </div>
+          <label className="mb-3 flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3">
+            <Search className="h-4 w-4 text-text-tertiary" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти шаблон" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+          </label>
+          <div className="max-h-[620px] space-y-2 overflow-auto pr-1">
+            {loading ? <p className="text-sm text-text-secondary">Загрузка...</p> : null}
+            {!loading && filteredTemplates.length === 0 ? <p className="text-sm text-text-secondary">Шаблонов пока нет.</p> : null}
+            {filteredTemplates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => selectTemplate(template)}
+                className={cn(
+                  'w-full rounded-lg border px-3 py-2 text-left transition',
+                  activeId === template.id ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-surface-hover',
+                )}
+              >
+                <span className="block text-sm font-semibold text-foreground">{template.title}</span>
+                <span className="mt-1 flex items-center gap-2 text-[11px] text-text-tertiary">
+                  {template.category || 'protocol'} · {template.status === 'archived' ? 'архив' : template.status === 'draft' ? 'черновик' : 'активен'} · v{template.version || 1}
+                </span>
+              </button>
+            ))}
+          </div>
         </aside>
+
         <section className="mis-card rounded-xl p-5 min-w-0">
-          <div className="clinic-os-panel-head">
-            <div><span>{activeTemplate.specialty}</span><h2>{activeTemplate.title}</h2></div>
-            <StatusPill status={activeTemplate.state === 'Готов к выпуску' ? 'ready' : 'risk'} />
-          </div>
-          <div className="clinic-os-template-workbench">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <label><span>Структура документа</span><textarea defaultValue={'Жалобы: {{complaint}}\nОсмотр: {{examination}}\nДиагноз: {{diagnosis}}\nРекомендации: {{recommendations}}'} /></label>
-              <div className="clinic-os-variable-list">{variables.map((variable) => <button key={variable}>{variable}</button>)}</div>
-              {missingData.length > 0 ? (
-                <div className="clinic-os-missing-data">
-                  <strong>Недостающие данные</strong>
-                  {missingData.map((item) => <span key={item}>{item}</span>)}
-                </div>
-              ) : (
-                <div className="clinic-os-ready-data">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Все обязательные данные доступны для выпуска документа.</span>
-                </div>
-              )}
+              <p className="text-[11px] font-semibold uppercase text-text-tertiary">Редактор</p>
+              <h2 className="text-lg font-semibold text-foreground">{activeTemplate ? 'Редактирование шаблона' : 'Новый шаблон'}</h2>
             </div>
-            <div className="clinic-os-document-preview">
-              <div className="clinic-os-preview-toolbar"><Printer className="h-4 w-4" /> Предпросмотр</div>
-              <h3>{activeTemplate.title}</h3>
-              <p>Пациент: Айгерим Нурланова</p>
-              <p>Врач: А. Искадиров</p>
-              <p>Диагноз: I10 Эссенциальная гипертензия</p>
-              <p>Рекомендации: контроль давления, повторный прием через 14 дней.</p>
+            <div className="flex flex-wrap gap-2">
+              {activeTemplate ? <span className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm text-text-secondary">Версия {activeTemplate.version || 1}</span> : null}
+              <button type="button" onClick={checkTemplate} className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover">Проверить</button>
+              <button type="button" onClick={buildPreview} className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover">Предпросмотр</button>
+              <button type="button" onClick={copyTemplate} disabled={!activeId || saving} className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover disabled:opacity-40">Копия</button>
+              <button type="button" onClick={archiveTemplate} disabled={!activeId || saving} className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover disabled:opacity-40">Архив</button>
+              <button type="button" onClick={saveTemplate} disabled={!readyToSave || saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                {saving ? 'Сохранение...' : 'Сохранить'}
+              </button>
             </div>
           </div>
-          <div className="clinic-os-document-footer">
-            <div>
-              <span>Версия 3 · обновлена сегодня</span>
-              <strong>Доступ: врач, администратор, руководитель</strong>
-            </div>
-            <button type="button">Выпустить из приема</button>
+
+          {error ? <div className="mb-3 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div> : null}
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_140px]">
+            <label className="grid gap-1.5">
+              <span className="text-[12px] font-semibold text-text-secondary">Название</span>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-[12px] font-semibold text-text-secondary">Тип</span>
+              <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm">
+                <option value="protocol">Протокол</option>
+                <option value="recommendation">Рекомендации</option>
+                <option value="certificate">Справка</option>
+                <option value="consent">Согласие</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-[12px] font-semibold text-text-secondary">Статус</span>
+              <select value={status} onChange={(event) => setStatus(event.target.value as 'draft' | 'active' | 'archived')} className="h-10 rounded-lg border border-border bg-background px-3 text-sm">
+                <option value="active">Активен</option>
+                <option value="draft">Черновик</option>
+                <option value="archived">Архив</option>
+              </select>
+            </label>
           </div>
+
+          <label className="mt-3 grid gap-1.5">
+            <span className="text-[12px] font-semibold text-text-secondary">Описание</span>
+            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Для каких приемов используется шаблон" className="h-10 rounded-lg border border-border bg-background px-3 text-sm" />
+          </label>
+
+          <section className="mt-4 rounded-xl border border-border bg-background/60 p-3">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[12px] font-semibold text-text-secondary">Конструктор структуры</p>
+                <p className="text-[11px] text-text-tertiary">Соберите медицинский документ из блоков, затем уточните печатную форму ниже.</p>
+              </div>
+              <button type="button" onClick={replaceWithClinicalStructure} className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary hover:bg-surface-hover">Собрать полный протокол</button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {templateBlocks.map((block) => (
+                <button key={block.title} type="button" onClick={() => insertTemplateBlock(block.body)} className="rounded-lg border border-border bg-surface-1 px-3 py-2 text-left hover:bg-surface-hover">
+                  <span className="block text-sm font-semibold text-foreground">{block.title}</span>
+                  <span className="mt-1 block text-[11px] text-text-tertiary">{block.description}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-border px-3 py-2"><span className="text-[11px] text-text-tertiary">Блоков</span><strong className="mt-1 block text-foreground">{documentSections.length}</strong></div>
+              <div className="rounded-lg border border-border px-3 py-2"><span className="text-[11px] text-text-tertiary">Переменных</span><strong className="mt-1 block text-foreground">{usedFieldLabels.length}</strong></div>
+              <div className="rounded-lg border border-border px-3 py-2"><span className="text-[11px] text-text-tertiary">Статус</span><strong className="mt-1 block text-foreground">{unknownFields.length ? 'Есть ошибки' : 'Готов к проверке'}</strong></div>
+            </div>
+          </section>
+
+          <label className="mt-3 grid gap-1.5">
+            <span className="text-[12px] font-semibold text-text-secondary">Печатная форма</span>
+            <textarea value={body} onChange={(event) => setBody(event.target.value)} className="min-h-[300px] rounded-lg border border-border bg-background px-3 py-3 text-sm leading-6 outline-none focus:border-primary" />
+          </label>
+
+          {(warnings.length > 0 || unknownFields.length > 0 || missingFields.length > 0) ? (
+            <div className="mt-3 grid gap-2 rounded-lg border border-border bg-surface-2 p-3 text-sm text-text-secondary">
+              {unknownFields.length > 0 ? <p>Неизвестные поля: {unknownFields.join(', ')}</p> : null}
+              {missingFields.length > 0 ? <p>Нет данных для предпросмотра: {missingFields.join(', ')}</p> : null}
+              {warnings.map((warning) => <p key={warning}>{warning}</p>)}
+            </div>
+          ) : null}
         </section>
+
+        <aside className="mis-card rounded-xl p-4">
+          <div className="mb-3">
+            <p className="text-[11px] font-semibold uppercase text-text-tertiary">Поля</p>
+            <h2 className="text-base font-semibold text-foreground">Вставка данных</h2>
+          </div>
+          <div className="max-h-[360px] space-y-4 overflow-auto pr-1">
+            {Object.entries(groupedFields).map(([group, groupFields]) => (
+              <div key={group}>
+                <p className="mb-2 text-[12px] font-semibold text-text-secondary">{group}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {groupFields.map((field) => (
+                    <button
+                      key={field.key}
+                      type="button"
+                      title={field.description ?? field.key}
+                      onClick={() => insertField(field)}
+                      className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground hover:bg-surface-hover"
+                    >
+                      {field.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="text-[11px] font-semibold uppercase text-text-tertiary">История</p>
+            <div className="mt-3 max-h-[220px] space-y-2 overflow-auto pr-1">
+              {versions.length === 0 ? <p className="text-sm text-text-secondary">Версий пока нет.</p> : null}
+              {versions.map((version) => (
+                <div key={version.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <strong className="text-foreground">v{version.version}</strong>
+                    <span className="text-[11px] text-text-tertiary">{version.status === 'active' ? 'активна' : version.status === 'draft' ? 'черновик' : 'архив'}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-text-tertiary">{new Date(version.created_at).toLocaleString('ru-RU')}</p>
+                  {version.change_note ? <p className="mt-1 text-xs text-text-secondary">{version.change_note}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
       </section>
-    </ClinicShell>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mis-card rounded-xl p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase text-text-tertiary">Предпросмотр</p>
+              <h2 className="text-base font-semibold text-foreground">Документ на данных приема</h2>
+            </div>
+            <button type="button" onClick={buildPreview} className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover">Обновить</button>
+          </div>
+          <div className="min-h-[180px] whitespace-pre-wrap rounded-lg border border-border bg-background p-4 text-sm leading-6 text-foreground">
+            {preview || 'Нажмите «Предпросмотр», чтобы увидеть документ с подставленными данными пациента и приема.'}
+          </div>
+        </div>
+
+        <div className="mis-card rounded-xl p-5">
+          <p className="text-[11px] font-semibold uppercase text-text-tertiary">Поток врача</p>
+          <div className="mt-3 space-y-3 text-sm text-text-secondary">
+            <div className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400" /><span>Администратор создает шаблон и активирует его.</span></div>
+            <div className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400" /><span>Врач выбирает документ внутри приема пациента.</span></div>
+            <div className="flex gap-3"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400" /><span>Система подставляет данные и отдает документ в печать/PDF.</span></div>
+          </div>
+          <Link to="/clinic/visits/visit-1042" className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            Проверить в приеме
+          </Link>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -705,6 +1218,22 @@ export function ClinicSettingsPage() {
   const [saving, setSaving] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<'services' | 'overview'>('services')
+  const [syncing, setSyncing] = useState(false)
+
+  const handleSyncFromCrm = useCallback(async () => {
+    if (!clinicId || syncing) return
+    setSyncing(true)
+    try {
+      const { data } = await syncServicesFromCrm(clinicId)
+      const { data: svcs } = await listClinicServices(clinicId)
+      setServices(svcs)
+      alert(`Синхронизировано: добавлено ${data.created}, обновлено ${data.updated} из ${data.total}`)
+    } catch {
+      alert('Ошибка синхронизации')
+    } finally {
+      setSyncing(false)
+    }
+  }, [clinicId, syncing])
 
   useEffect(() => {
     if (!clinicId) return
@@ -834,6 +1363,14 @@ export function ClinicSettingsPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              <button
+                type="button"
+                disabled={syncing || !clinicId}
+                onClick={handleSyncFromCrm}
+                className="ml-auto shrink-0 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-surface-hover disabled:opacity-50"
+              >
+                {syncing ? 'Синхронизация...' : 'Синхр. из CRM'}
+              </button>
             </div>
 
             {loading ? (

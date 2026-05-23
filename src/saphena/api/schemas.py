@@ -766,6 +766,18 @@ class NotificationMarkReadResponse(BaseModel):
     read_at: datetime
 
 
+class CrmServiceRead(BaseModel):
+    """Service from Qtrix CRM price list."""
+    qtrix_id: str
+    name: str
+    category: str | None = None
+    price_type: str = "not_set"
+    exact_price: float | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    currency: str = "KZT"
+
+
 class CrmAppointmentRead(BaseModel):
     """Appointment sourced from Qtrix CRM, normalized for calendar display."""
     id: str                          # Qtrix UUID as string

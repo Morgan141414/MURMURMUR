@@ -426,3 +426,24 @@ export function listClinicGeneratedDocuments(clinicId: number) {
 export function renderClinicDocument(clinicId: number, payload: DocumentRenderPayload) {
   return api.post<ClinicGeneratedDocument>(`/clinics/${clinicId}/documents/render`, payload)
 }
+
+export interface CrmService {
+  qtrix_id: string
+  name: string
+  category?: string | null
+  price_type: string
+  exact_price?: number | null
+  min_price?: number | null
+  max_price?: number | null
+  currency: string
+}
+
+export function listCrmServices(clinicId: number) {
+  return api.get<CrmService[]>(`/clinics/${clinicId}/services/crm`)
+}
+
+export function syncServicesFromCrm(clinicId: number) {
+  return api.post<{ created: number; updated: number; total: number }>(
+    `/clinics/${clinicId}/services/sync-from-crm`
+  )
+}
